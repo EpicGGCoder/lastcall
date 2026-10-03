@@ -364,3 +364,121 @@ export function feltTexture(gl) {
 }
 
 export function triangleCount(mesh) { return mesh.count / 3; }
+
+/* ============================================================================
+   CHARACTERS
+   ----------------------------------------------------------------------------
+   A seated person is seven animatable parts, not one mesh: the scene moves
+   the head to look around, slides pupils inside the eyes, opens the mouth to
+   talk, raises the arms to cheer, and — when a live round lands — detaches
+   the head entirely and lets physics take it.
+
+   Faces are deliberately toy-like: oversized eye whites, big pupils, one
+   small mouth. Round reads friendly; angular reads horrific, and this table
+   has enough horror in the rules already.
+   ========================================================================== */
+
+const SPECIES = {
+  fedora:    { skin: [0.83, 0.62, 0.45], cloth: [0.24, 0.22, 0.28], h: 1.00, hw: 1.00 },
+  shades:    { skin: [0.55, 0.38, 0.28], cloth: [0.16, 0.22, 0.30], h: 1.02, hw: 0.98 },
+  moustache: { skin: [0.90, 0.72, 0.55], cloth: [0.30, 0.20, 0.16], h: 0.98, hw: 1.10 },
+  cigarette: { skin: [0.72, 0.55, 0.42], cloth: [0.20, 0.26, 0.22], h: 1.00, hw: 0.95 },
+  moth:      { skin: [0.78, 0.70, 0.58], cloth: [0.35, 0.30, 0.24], h: 0.92, hw: 0.85 },
+  cat:       { skin: [0.85, 0.78, 0.70], cloth: [0.30, 0.24, 0.34], h: 0.94, hw: 0.88 },
+  skull:     { skin: [0.92, 0.90, 0.84], cloth: [0.16, 0.16, 0.20], h: 1.00, hw: 0.96 },
+  cactus:    { skin: [0.36, 0.62, 0.36], cloth: [0.42, 0.30, 0.20], h: 1.06, hw: 0.80 },
+  toucan:    { skin: [0.20, 0.20, 0.24], cloth: [0.85, 0.45, 0.15], h: 0.96, hw: 0.90 },
+  toaster:   { skin: [0.72, 0.74, 0.78], cloth: [0.55, 0.30, 0.30], h: 0.90, hw: 1.05 }
+};
+
+const at = (mesh, x, y, z, rot, scale) => ({ mesh, t: { pos: [x, y, z], rot: rot || [0, 0, 0], scale: scale || [1, 1, 1] } });
+
+export function characterParts(kind, accent) {
+  const sp = SPECIES[kind] || SPECIES.fedora;
+  const skin = sp.skin, cloth = sp.cloth;
+  const acc = accent || [0.91, 0.69, 0.29];
+  const parts = {};
+  const HR = 0.24 * sp.hw;
+
+  /* torso: soft tapered column, shoulder bar, neck stub */
+  parts.torso = merge([
+    at(cylinder({ r1: 0.30 * sp.hw, r2: 0.22 * sp.hw, h: 0.62, seg: 10, colour: cloth }), 0, 0.31, 0),
+    at(box({ w: 0.62 * sp.hw, h: 0.16, d: 0.30 * sp.hw, colour: cloth.map((c) => Math.min(1, c * 1.08)) }), 0, 0.60, 0),
+    at(cylinder({ r1: 0.09, r2: 0.09, h: 0.12, seg: 8, colour: skin }), 0, 0.68, 0)
+  ]);
+
+  /* head group pivots at the neck (y=0.74 in seat space) */
+  const HY = 0.74;
+  const bits = [
+    at(sphere({ r: HR, seg: 10, rings: 8, colour: skin }), 0, HY + 0.20, 0, [0, 0, 0], [1, 1.06, 1]),
+    at(sphere({ r: 0.068, seg: 8, rings: 6, colour: [1.35, 1.35, 1.32] }), -0.095, HY + 0.24, HR * 0.74),
+    at(sphere({ r: 0.068, seg: 8, rings: 6, colour: [1.35, 1.35, 1.32] }), 0.095, HY + 0.24, HR * 0.74),
+    at(box({ w: 0.20, h: 0.028, d: 0.05, colour: skin.map((c) => c * 0.8) }), 0, HY + 0.335, HR * 0.78)
+  ];
+  const gear = {
+    fedora: () => [
+      at(cylinder({ r1: 0.30, r2: 0.30, h: 0.02, seg: 12, colour: [0.15, 0.13, 0.12] }), 0, HY + 0.34, 0),
+      at(cylinder({ r1: 0.16, r2: 0.14, h: 0.16, seg: 12, colour: [0.15, 0.13, 0.12] }), 0, HY + 0.42, 0),
+      at(cylinder({ r1: 0.165, r2: 0.165, h: 0.03, seg: 12, colour: acc }), 0, HY + 0.365, 0)
+    ],
+    shades: () => [
+      at(box({ w: 0.26, h: 0.075, d: 0.05, colour: [0.08, 0.08, 0.10] }), 0, HY + 0.245, HR * 0.86),
+      at(box({ w: 0.30, h: 0.02, d: 0.04, colour: [0.08, 0.08, 0.10] }), 0, HY + 0.275, HR * 0.6)
+    ],
+    moustache: () => [
+      at(box({ w: 0.17, h: 0.05, d: 0.06, colour: [0.25, 0.16, 0.10] }), 0, HY + 0.145, HR * 0.86),
+      at(box({ w: 0.05, h: 0.06, d: 0.05, colour: [0.25, 0.16, 0.10] }), -0.08, HY + 0.125, HR * 0.84),
+      at(box({ w: 0.05, h: 0.06, d: 0.05, colour: [0.25, 0.16, 0.10] }), 0.08, HY + 0.125, HR * 0.84)
+    ],
+    cigarette: () => [
+      at(cylinder({ r1: 0.014, r2: 0.014, h: 0.16, seg: 6, colour: [0.92, 0.90, 0.85] }), 0.13, HY + 0.14, HR * 0.8, [0, 0, 1.2]),
+      at(sphere({ r: 0.02, seg: 6, rings: 4, colour: [1.0, 0.35, 0.15] }), 0.20, HY + 0.145, HR * 0.8)
+    ],
+    moth: () => [
+      at(box({ w: 0.16, h: 0.20, d: 0.02, colour: [0.80, 0.72, 0.55] }), -0.17, HY + 0.30, -0.06, [0, 0.5, 0.4]),
+      at(box({ w: 0.16, h: 0.20, d: 0.02, colour: [0.80, 0.72, 0.55] }), 0.17, HY + 0.30, -0.06, [0, -0.5, -0.4]),
+      at(cylinder({ r1: 0.008, r2: 0.008, h: 0.14, seg: 5, colour: [0.4, 0.35, 0.3] }), -0.06, HY + 0.42, 0.05, [0.5, 0, 0.3]),
+      at(cylinder({ r1: 0.008, r2: 0.008, h: 0.14, seg: 5, colour: [0.4, 0.35, 0.3] }), 0.06, HY + 0.42, 0.05, [0.5, 0, -0.3])
+    ],
+    cat: () => [
+      at(cylinder({ r1: 0.075, r2: 0.01, h: 0.13, seg: 4, colour: skin }), -0.13, HY + 0.40, 0),
+      at(cylinder({ r1: 0.075, r2: 0.01, h: 0.13, seg: 4, colour: skin }), 0.13, HY + 0.40, 0),
+      at(cylinder({ r1: 0.045, r2: 0.008, h: 0.09, seg: 4, colour: [0.90, 0.55, 0.60] }), -0.13, HY + 0.39, 0.02),
+      at(cylinder({ r1: 0.045, r2: 0.008, h: 0.09, seg: 4, colour: [0.90, 0.55, 0.60] }), 0.13, HY + 0.39, 0.02)
+    ],
+    skull: () => [
+      at(box({ w: 0.24, h: 0.10, d: 0.06, colour: acc }), 0, HY + 0.32, HR * 0.7),
+      at(box({ w: 0.10, h: 0.16, d: 0.05, colour: acc }), 0, HY + 0.14, HR * 0.9)
+    ],
+    cactus: () => [
+      at(cylinder({ r1: 0.05, r2: 0.02, h: 0.10, seg: 6, colour: [0.95, 0.45, 0.60] }), 0.05, HY + 0.45, 0.02),
+      at(cylinder({ r1: 0.05, r2: 0.05, h: 0.02, seg: 6, colour: [0.98, 0.85, 0.30] }), 0.05, HY + 0.50, 0.02)
+    ],
+    toucan: () => [
+      at(cylinder({ r1: 0.09, r2: 0.02, h: 0.30, seg: 8, colour: [0.95, 0.55, 0.15] }), 0, HY + 0.18, HR + 0.10, [1.45, 0, 0]),
+      at(cylinder({ r1: 0.05, r2: 0.02, h: 0.10, seg: 6, colour: [0.20, 0.60, 0.60] }), 0, HY + 0.40, -0.05, [0.6, 0, 0])
+    ],
+    toaster: () => [
+      at(box({ w: 0.30, h: 0.05, d: 0.22, colour: [0.35, 0.36, 0.40] }), 0, HY + 0.40, 0),
+      at(box({ w: 0.10, h: 0.06, d: 0.14, colour: [0.85, 0.75, 0.55] }), -0.07, HY + 0.44, 0),
+      at(box({ w: 0.10, h: 0.06, d: 0.14, colour: [0.85, 0.75, 0.55] }), 0.07, HY + 0.44, 0),
+      at(cylinder({ r1: 0.02, r2: 0.02, h: 0.10, seg: 6, colour: [0.85, 0.20, 0.20] }), 0.17, HY + 0.32, 0.08)
+    ]
+  };
+  parts.head = merge(bits.concat((gear[kind] || gear.fedora)()));
+
+  parts.pupilL = sphere({ r: 0.027, seg: 6, rings: 5, colour: [0.08, 0.07, 0.08] });
+  parts.pupilR = sphere({ r: 0.027, seg: 6, rings: 5, colour: [0.08, 0.07, 0.08] });
+  parts.mouth = box({ w: 0.105, h: 0.036, d: 0.05, colour: [0.34, 0.11, 0.13] });
+
+  /* arms pivot at the shoulder (y=0.58); the hand sphere hangs at the far end */
+  const arm = merge([
+    at(cylinder({ r1: 0.075, r2: 0.06, h: 0.42, seg: 7, colour: cloth.map((c) => Math.min(1, c * 1.1)) }), 0, -0.21, 0),
+    at(sphere({ r: 0.075, seg: 7, rings: 5, colour: skin }), 0, -0.44, 0)
+  ]);
+  parts.armL = arm;
+  parts.armR = arm;
+
+  parts.meta = { skin, cloth, acc, h: sp.h, hw: sp.hw, HY, HR, eyeY: HY + 0.24, eyeX: 0.095, eyeZ: HR * 0.74, shoulderY: 0.58 };
+  return parts;
+}

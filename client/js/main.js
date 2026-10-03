@@ -30,6 +30,7 @@ let lastTurnId = null;
 let gameOverPending = false;
 let startTime = 0;
 let pendingSolo = false;
+let slowmo = 0;
 
 /* ---------------------------------------------------------------------------
    Boot
@@ -110,11 +111,13 @@ function boot() {
     onState: (msg) => { enqueue(msg); },
     onPrivate: (priv) => { ui.priv = priv; },
     onChat: (entry) => {
+      if (entry.id) scene.react(entry.id, 'talk');
       ui.pushChat(entry, ui.state && ui.state.phase === 'turn' ? 'game' : 'lobby');
       ui.pushChat(entry, ui.state && ui.state.phase === 'turn' ? 'lobby' : 'game');
       if (!entry.system && entry.id !== ui.you) sound.pop();
     },
     onReact: (entry) => {
+      scene.react(entry.playerId, 'cheer');
       const pos = reactionPosition(entry.playerId);
       ui.floatReaction(entry.emoji, pos);
       sound.pop();
@@ -211,8 +214,10 @@ async function drain() {
     if (v) {
       const won = v.winnerId === ui.you;
       if (won) sound.victory(); else sound.defeat();
-      scene.setCamera('wide');
-      camMode = 'wide';
+      scene.react(v.winnerId, 'cheer');
+      const wIdx = (v.players || []).findIndex((p) => p.id === v.winnerId);
+      if (wIdx >= 0) { scene.setCamera('face', { index: wIdx, count: v.players.length }); camMode = 'face'; }
+      else { scene.setCamera('wide'); camMode = 'wide'; }
       await wait(1100);
       ui.renderOver(v.winnerId);
     }
@@ -251,7 +256,27 @@ function playEvent(ev, msg) {
     case 'shot': {
       scene.consumeShell(ev.shell);
       scene.addCasing(ev.shell);
-      scene.fire({ shell: ev.shell, self: ev.self });
+      scene.fire({ shell: ev.shell, self: ev.evSelf || ev.self });
+      const victimId = ev.self ? ev.shooter : ev.target;
+      const shooterRig = ev.shooter;
+      if (ev.shell === 'live') {
+        scene.react(victimId, 'flinch');
+        scene.react(shooterRig, 'point');
+        const vr = scene.rigs.get(victimId);
+        if (vr) scene.goreBurst(scene.headWorldOf(vr), 30);
+        if (ev.killed) {
+          slowmo = 1.0;
+          scene.popHead(victimId);
+          const idx = (msg.view.players || []).findIndex((p) => p.id === victimId);
+          if (idx >= 0) {
+            scene.setCamera('face', { index: idx, count: msg.view.players.length });
+            camMode = 'face';
+            camRevert = Date.now() + 1500;
+          }
+        }
+      } else {
+        scene.react(ev.self ? ev.shooter : ev.target, ev.self ? 'cheer' : 'flinch');
+      }
       if (ev.shell === 'live') { sound.gunshot(ev.self); if (ev.killed) sound.hurt(); }
       else sound.blank();
       scene.setCamera('barrel');
@@ -265,10 +290,12 @@ function playEvent(ev, msg) {
     }
 
     case 'keepsTurn':
+      scene.react(ev.who, 'cheer');
       ui.banner((isMe(ev.who) ? 'YOU KEEP' : nameOf(ev.who).toUpperCase() + ' KEEPS') + ' THE TURN', 'good');
       break;
 
     case 'out':
+      scene.react(ev.who, 'flinch');
       sound.bad();
       ui.banner(nameOf(ev.who).toUpperCase() + ' IS OUT', 'bad');
       break;
@@ -390,8 +417,12 @@ let fpsAccum = 0, fpsCount = 0, fpsLow = 0;
 
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, lastFrame ? (now - lastFrame) / 1000 : 0.016);
+  const raw = Math.min(0.05, lastFrame ? (now - lastFrame) / 1000 : 0.016);
   lastFrame = now;
+  // time dilates around a kill: the single cheapest trick that reads as
+  // "cinema" instead of "spreadsheet"
+  const dt = slowmo > 0 ? raw * 0.32 : raw;
+  if (slowmo > 0) slowmo -= raw;
 
   if (camRevert && Date.now() > camRevert) {
     camRevert = 0;
@@ -441,4 +472,5 @@ window.addEventListener('error', (e) => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
 
+window.__scene = scene; window.__ui = ui; window.__net = net;
 export { boot, scene, ui, net };
