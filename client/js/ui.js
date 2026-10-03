@@ -79,7 +79,8 @@ export class UI {
       b.hidden = !b.hidden;
     });
 
-    $('btn-create').addEventListener('click', () => this.h.onCreate && this.h.onCreate(this.identity()));
+    $('btn-create').addEventListener('click', () => this.h.onCreate && this.h.onCreate(this.identity(), { solo: false }));
+    $('btn-solo').addEventListener('click', () => this.h.onCreate && this.h.onCreate(this.identity(), { solo: true }));
     $('btn-join-open').addEventListener('click', () => {
       const row = $('join-row');
       row.hidden = !row.hidden;
@@ -320,14 +321,18 @@ export class UI {
     const isHost = this.isHost;
 
     if (isHost) {
+      controls.appendChild(this.settingsPanel(room));
+      const seats = room.settings.seats || 4;
+      const here = room.players.length;
       const start = el('button', 'big primary',
-        `<b>Deal the shells</b><small>${room.players.length < 2 ? 'two players minimum — add a bot if nobody is coming' : room.players.length + ' at the table'}</small>`);
+        `<b>Deal the shells</b><small>${here >= seats ? here + ' at the table — dealing as is' : seats + ' seats; regulars fill the ' + (seats - here) + ' empty'}</small>`);
       start.addEventListener('click', () => this.h.onStart && this.h.onStart());
       controls.appendChild(start);
 
       const bots = el('button', 'big',
-        `<b>Add a regular</b><small>a bot, for an empty chair</small>`);
+        `<b>Add a regular now</b><small>a bot, for an empty chair</small>`);
       bots.addEventListener('click', () => this.h.onAddBot && this.h.onAddBot());
+      bots.hidden = here >= 6;
       controls.appendChild(bots);
     } else {
       const wait = el('div', 'hint', 'Waiting for the host to deal. Say something cruel in the meantime.');
@@ -341,6 +346,35 @@ export class UI {
 
     $('scr-lobby').hidden = false;
     this.showScreen('lobby');
+  }
+
+  /* Host-only table configuration. Every pick is one tap and applies at once;
+     the server validates against allowlists, so a rigged client can only
+     ever choose cosmetics that exist. */
+  settingsPanel(room) {
+    const wrap = el('div', 'lobby-settings');
+    const s = room.settings || {};
+    const group = (label, opts, cur, key) => {
+      const g = el('div', 'set-group');
+      g.innerHTML = `<span class="set-label">${label}</span>`;
+      const row = el('div', 'set-row');
+      opts.forEach(([val, text]) => {
+        const b = el('button', 'chipset' + (cur === val ? ' on' : ''), text);
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          this.h.onSettings && this.h.onSettings({ [key]: val });
+        });
+        row.appendChild(b);
+      });
+      g.appendChild(row);
+      wrap.appendChild(g);
+    };
+    group('Seats', [[2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']], s.seats || 4, 'seats');
+    group('Clock', [[30, 'Fast'], [45, 'Normal'], [75, 'Relaxed'], [120, 'Chatty'], [0, 'Off']], s.turnSeconds == null ? 75 : s.turnSeconds, 'turnSeconds');
+    group('Room', [['backroom', 'Backroom'], ['diner', 'Diner'], ['rooftop', 'Rooftop']], s.map || 'backroom', 'map');
+    group('Gun', [['revolver', 'Revolver'], ['sawedoff', 'Sawed-off'], ['flintlock', 'Flintlock'], ['golden', 'Golden']], s.weapon || 'revolver', 'weapon');
+    group('Chaos', [['chill', 'Chill'], ['standard', 'Standard'], ['chaos', 'Chaos']], s.chaos || 'standard', 'chaos');
+    return wrap;
   }
 
   renderLobbyLog(entries) {

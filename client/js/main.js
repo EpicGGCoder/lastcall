@@ -29,6 +29,7 @@ let turnDeadline = 0;
 let lastTurnId = null;
 let gameOverPending = false;
 let startTime = 0;
+let pendingSolo = false;
 
 /* ---------------------------------------------------------------------------
    Boot
@@ -42,7 +43,12 @@ function boot() {
   }
 
   ui = new UI({
-    onCreate: (id) => { sound.ensure(); connect(); net.send({ t: 'create', name: id.name, avatar: id.avatar }); },
+    onCreate: (id, opts) => {
+      sound.ensure();
+      if (opts && opts.solo) pendingSolo = true;
+      connect();
+      net.send({ t: 'create', name: id.name, avatar: id.avatar });
+    },
     onJoin: (id) => { sound.ensure(); connect(); net.send({ t: 'join', code: id.code, name: id.name, avatar: id.avatar }); },
     onStart: () => net.send({ t: 'start' }),
     onAddBot: () => net.send({ t: 'addBot' }),
@@ -52,7 +58,7 @@ function boot() {
     onReact: (emoji) => net.send({ t: 'react', emoji }),
     onRematch: () => { clearOver(); net.send({ t: 'rematch' }); },
     onLeave: () => { net.send({ t: 'leave' }); leaveClean(); },
-    onSettings: (s) => net.send({ t: 'settings', turnSeconds: s.turnSeconds }),
+    onSettings: (s) => net.send(Object.assign({ t: 'settings' }, s)),
     onOverShown: () => {}
   });
   ui.init();
@@ -78,6 +84,11 @@ function boot() {
         if (msg.room.mag) scene.loadMagazine(msg.room.mag);
         if (msg.room.phase === 'over' && msg.room.winnerId) ui.renderOver(msg.room.winnerId);
         sound.startRoom();
+      }
+      if (pendingSolo && msg.room.phase === 'lobby') {
+        pendingSolo = false;
+        net.send({ t: 'start' });
+        ui.toast('The house is filling the seats…');
       }
       if (msg.you.returned) ui.toast('Back in your seat.');
       if (msg.you.spectating) ui.toast('The match is underway. You are watching this one.');

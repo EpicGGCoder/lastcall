@@ -354,7 +354,12 @@ function handle(ws, msg) {
       const room = requireSession(ws, hub); if (!room) return;
       const p = room.playerById(session.playerId);
       if (room.hostId !== p.id) return;
+      const { MAPS, WEAPONS, CHAOS } = require('./rooms.js');
       if (TURN_CHOICES.includes(msg.turnSeconds)) room.settings.turnSeconds = msg.turnSeconds;
+      if (typeof msg.seats === 'number' && msg.seats >= 2 && msg.seats <= 6) room.settings.seats = Math.round(msg.seats);
+      if (MAPS.includes(msg.map)) room.settings.map = msg.map;
+      if (WEAPONS.includes(msg.weapon)) room.settings.weapon = msg.weapon;
+      if (CHAOS.includes(msg.chaos)) room.settings.chaos = msg.chaos;
       room.pushRoom();
       return;
     }

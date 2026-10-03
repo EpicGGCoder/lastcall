@@ -62,7 +62,7 @@ class Room {
     this.hostId = null;
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
-    this.settings = { turnSeconds: 75 };
+    this.settings = { turnSeconds: 75, seats: 4, map: 'backroom', weapon: 'revolver', chaos: 'standard' };
     this.timers = {};
     this.reactionLog = [];
     this.dealerLine = null;   // last narration, for late joiners
@@ -209,15 +209,19 @@ class Room {
 
   /* ------------------------------------------------------------------ flow */
   startGame(byId) {
-    if (this.game && this.game.phase === 'turn') return { ok: false, error: 'Already underway.' };
-    if (this.players.length < G.MIN_PLAYERS) return { ok: false, error: 'You need at least two people.' };
+    if (this.game && this.game.phase === 'turn') return { ok: false, error: 'Already underway.' }
 
-    // Starting alone? Fill the table. The alternative is an empty lobby and a
-    // person who closes the tab.
-    if (this.humans().length === 1 && this.players.filter((p) => p.isBot).length < 2) {
-      while (this.players.length < 3) this.addBot();
-      this.pushChat({ system: true, text: 'The house sat some regulars down with you. They are not friendly.' });
+    // Starting alone? Fill the table FIRST — the minimum-players check below
+    // must see the regulars, or a solo host gets a dead button and closes
+    // the tab. Nobody should ever be unable to start.
+    if (this.humans().length >= 1 && this.players.length < 3) {
+      const before = this.players.length;
+      while (this.players.length < Math.max(G.MIN_PLAYERS, Math.min(6, this.settings.seats || 3))) this.addBot();
+      if (this.players.length > before) {
+        this.pushChat({ system: true, text: 'The house sat some regulars down with you. They are not friendly.' });
+      }
     }
+    if (this.players.length < G.MIN_PLAYERS) return { ok: false, error: 'You need at least two people.' };
 
     const seats = this.players.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, colour: p.colour, isBot: p.isBot, bot: p.persona }));
     this.game = G.createGame(seats, rng);
@@ -484,4 +488,8 @@ class Hub {
   }
 }
 
-module.exports = { Hub, Room, AVATARS, COLOURS, TURN_CHOICES, rng, narrate, makeId };
+const MAPS = ['backroom', 'diner', 'rooftop'];
+const WEAPONS = ['revolver', 'sawedoff', 'flintlock', 'golden'];
+const CHAOS = ['chill', 'standard', 'chaos'];
+
+module.exports = { MAPS, WEAPONS, CHAOS, Hub, Room, AVATARS, COLOURS, TURN_CHOICES, rng, narrate, makeId };

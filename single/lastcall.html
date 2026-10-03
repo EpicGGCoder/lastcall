@@ -836,6 +836,32 @@ input, .seg button, .toggle {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
+/* ── lobby table configuration ─────────────────────────────────────────── */
+.lobby-settings {
+  display: flex; flex-direction: column; gap: .5rem;
+  width: 100%; margin: .2rem 0 .6rem;
+  padding: .7rem .8rem;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid rgba(232, 176, 75, .14);
+  border-radius: var(--radius);
+}
+.set-group { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.set-label {
+  font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--muted); min-width: 3.6rem;
+}
+.set-row { display: flex; gap: .3rem; flex-wrap: wrap; }
+button.chipset {
+  font: inherit; font-size: .72rem; color: var(--paper);
+  background: var(--ink-3); border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 999px; padding: .28rem .62rem; cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+button.chipset.on {
+  background: rgba(232, 176, 75, .16);
+  border-color: var(--brass); color: var(--brass);
+}
+
 </style>
 </head>
 <body>
@@ -928,6 +954,9 @@ input, .seg button, .toggle {
         <div class="title-buttons">
           <button class="big primary" id="btn-create">
             <b>Create a table</b><small>and get a code to share</small>
+          </button>
+          <button class="big" id="btn-solo">
+            <b>Sit with the regulars</b><small>solo — the house fills the seats</small>
           </button>
           <button class="big" id="btn-join-open">
             <b>Join with a code</b><small>four letters from a friend</small>
@@ -2773,7 +2802,8 @@ class UI {
       b.hidden = !b.hidden;
     });
 
-    $('btn-create').addEventListener('click', () => this.h.onCreate && this.h.onCreate(this.identity()));
+    $('btn-create').addEventListener('click', () => this.h.onCreate && this.h.onCreate(this.identity(), { solo: false }));
+    $('btn-solo').addEventListener('click', () => this.h.onCreate && this.h.onCreate(this.identity(), { solo: true }));
     $('btn-join-open').addEventListener('click', () => {
       const row = $('join-row');
       row.hidden = !row.hidden;
@@ -3014,14 +3044,18 @@ class UI {
     const isHost = this.isHost;
 
     if (isHost) {
+      controls.appendChild(this.settingsPanel(room));
+      const seats = room.settings.seats || 4;
+      const here = room.players.length;
       const start = el('button', 'big primary',
-        `<b>Deal the shells</b><small>${room.players.length < 2 ? 'two players minimum — add a bot if nobody is coming' : room.players.length + ' at the table'}</small>`);
+        `<b>Deal the shells</b><small>${here >= seats ? here + ' at the table — dealing as is' : seats + ' seats; regulars fill the ' + (seats - here) + ' empty'}</small>`);
       start.addEventListener('click', () => this.h.onStart && this.h.onStart());
       controls.appendChild(start);
 
       const bots = el('button', 'big',
-        `<b>Add a regular</b><small>a bot, for an empty chair</small>`);
+        `<b>Add a regular now</b><small>a bot, for an empty chair</small>`);
       bots.addEventListener('click', () => this.h.onAddBot && this.h.onAddBot());
+      bots.hidden = here >= 6;
       controls.appendChild(bots);
     } else {
       const wait = el('div', 'hint', 'Waiting for the host to deal. Say something cruel in the meantime.');
@@ -3035,6 +3069,35 @@ class UI {
 
     $('scr-lobby').hidden = false;
     this.showScreen('lobby');
+  }
+
+  /* Host-only table configuration. Every pick is one tap and applies at once;
+     the server validates against allowlists, so a rigged client can only
+     ever choose cosmetics that exist. */
+  settingsPanel(room) {
+    const wrap = el('div', 'lobby-settings');
+    const s = room.settings || {};
+    const group = (label, opts, cur, key) => {
+      const g = el('div', 'set-group');
+      g.innerHTML = `<span class="set-label">${label}</span>`;
+      const row = el('div', 'set-row');
+      opts.forEach(([val, text]) => {
+        const b = el('button', 'chipset' + (cur === val ? ' on' : ''), text);
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          this.h.onSettings && this.h.onSettings({ [key]: val });
+        });
+        row.appendChild(b);
+      });
+      g.appendChild(row);
+      wrap.appendChild(g);
+    };
+    group('Seats', [[2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']], s.seats || 4, 'seats');
+    group('Clock', [[30, 'Fast'], [45, 'Normal'], [75, 'Relaxed'], [120, 'Chatty'], [0, 'Off']], s.turnSeconds == null ? 75 : s.turnSeconds, 'turnSeconds');
+    group('Room', [['backroom', 'Backroom'], ['diner', 'Diner'], ['rooftop', 'Rooftop']], s.map || 'backroom', 'map');
+    group('Gun', [['revolver', 'Revolver'], ['sawedoff', 'Sawed-off'], ['flintlock', 'Flintlock'], ['golden', 'Golden']], s.weapon || 'revolver', 'weapon');
+    group('Chaos', [['chill', 'Chill'], ['standard', 'Standard'], ['chaos', 'Chaos']], s.chaos || 'standard', 'chaos');
+    return wrap;
   }
 
   renderLobbyLog(entries) {
@@ -3545,6 +3608,7 @@ let turnDeadline = 0;
 let lastTurnId = null;
 let gameOverPending = false;
 let startTime = 0;
+let pendingSolo = false;
 
 /* ---------------------------------------------------------------------------
    Boot
@@ -3558,7 +3622,12 @@ function boot() {
   }
 
   ui = new UI({
-    onCreate: (id) => { sound.ensure(); connect(); net.send({ t: 'create', name: id.name, avatar: id.avatar }); },
+    onCreate: (id, opts) => {
+      sound.ensure();
+      if (opts && opts.solo) pendingSolo = true;
+      connect();
+      net.send({ t: 'create', name: id.name, avatar: id.avatar });
+    },
     onJoin: (id) => { sound.ensure(); connect(); net.send({ t: 'join', code: id.code, name: id.name, avatar: id.avatar }); },
     onStart: () => net.send({ t: 'start' }),
     onAddBot: () => net.send({ t: 'addBot' }),
@@ -3568,7 +3637,7 @@ function boot() {
     onReact: (emoji) => net.send({ t: 'react', emoji }),
     onRematch: () => { clearOver(); net.send({ t: 'rematch' }); },
     onLeave: () => { net.send({ t: 'leave' }); leaveClean(); },
-    onSettings: (s) => net.send({ t: 'settings', turnSeconds: s.turnSeconds }),
+    onSettings: (s) => net.send(Object.assign({ t: 'settings' }, s)),
     onOverShown: () => {}
   });
   ui.init();
@@ -3594,6 +3663,11 @@ function boot() {
         if (msg.room.mag) scene.loadMagazine(msg.room.mag);
         if (msg.room.phase === 'over' && msg.room.winnerId) ui.renderOver(msg.room.winnerId);
         sound.startRoom();
+      }
+      if (pendingSolo && msg.room.phase === 'lobby') {
+        pendingSolo = false;
+        net.send({ t: 'start' });
+        ui.toast('The house is filling the seats…');
       }
       if (msg.you.returned) ui.toast('Back in your seat.');
       if (msg.you.spectating) ui.toast('The match is underway. You are watching this one.');
