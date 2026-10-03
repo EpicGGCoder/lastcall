@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LAST CALL — a shotgun party game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0a0c">
+<meta name="description" content="A shotgun, a table, and your friends. Create a room, share the code, and find out who leaves upright.">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./favicon.svg">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<div id="app">
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <div id="vig" aria-hidden="true"></div>
+  <div id="cards" aria-live="polite"></div>
+
+  <!-- ── top strip: the state of the magazine ─────────────────────────── -->
+  <header id="hud" class="hidden">
+    <div class="hud-left">
+      <button class="hud-btn" id="btn-menu" title="Menu" aria-label="Menu">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="round-badge"><span id="round-num">1</span><small>ROUND</small></div>
+    </div>
+
+    <div class="mag" id="mag">
+      <div class="mag-shells" id="mag-shells"></div>
+      <div class="mag-label"><b id="mag-live">0</b> LIVE <span>·</span> <b id="mag-blank">0</b> BLANK <span>·</span> <b id="mag-left">0</b> LEFT</div>
+    </div>
+
+    <div class="hud-right">
+      <div class="turn-clock" id="turn-clock" hidden><span id="turn-clock-num">0</span></div>
+      <div class="conn" id="conn" title="Connection"><i></i><em id="conn-text">live</em></div>
+    </div>
+  </header>
+
+  <!-- ── the dealer's voice ───────────────────────────────────────────── -->
+  <div id="dealer" class="hidden">
+    <div class="dealer-line" id="dealer-line"></div>
+  </div>
+
+  <!-- ── bottom: your hand and your move ──────────────────────────────── -->
+  <section id="hand" class="hidden">
+    <div class="hand-head">
+      <div class="who" id="hand-who">Your turn</div>
+      <div class="lives" id="hand-lives"></div>
+    </div>
+    <div class="items" id="hand-items"></div>
+    <div class="actions" id="hand-actions">
+      <button class="act act-self" id="btn-self" data-act="self">
+        <svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+        <span class="act-t">Shoot yourself</span>
+        <span class="act-s" id="self-odds">—</span>
+      </button>
+      <button class="act act-other" id="btn-other" data-act="other">
+        <svg viewBox="0 0 24 24" class="ico"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="9" r="2.4"/><path d="M15 15.4c2.6.5 4.5 2.3 4.5 4.6"/></svg>
+        <span class="act-t">Shoot someone</span>
+        <span class="act-s" id="other-hint">pick a target</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ── chat + reactions ─────────────────────────────────────────────── -->
+  <button id="chat-toggle" class="hidden" aria-label="Chat">
+    <svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>
+    <b id="chat-badge" hidden>0</b>
+  </button>
+  <aside id="chat" class="hidden">
+    <div class="chat-log" id="chat-log"></div>
+    <div class="chat-reacts" id="chat-reacts"></div>
+    <form class="chat-form" id="chat-form">
+      <input id="chat-input" maxlength="180" placeholder="Say something cruel" autocomplete="off">
+      <button type="submit" aria-label="Send">
+        <svg viewBox="0 0 24 24"><path d="M3 20l18-8L3 4v6l12 2-12 2z"/></svg>
+      </button>
+    </form>
+  </aside>
+
+  <div id="emojis" class="hidden"></div>
+  <div id="floats" aria-hidden="true"></div>
+
+  <!-- ── full-screen panels ───────────────────────────────────────────── -->
+  <div id="screens">
+
+    <!-- title -->
+    <section class="screen" id="scr-title">
+      <div class="title-wrap">
+        <div class="rule"></div>
+        <h1>LAST<span>CALL</span></h1>
+        <p class="tag">A shotgun. A table. Your friends.<br>Somebody is walking out upright.</p>
+        <div class="identity">
+          <label>Your name
+            <input id="in-name" maxlength="16" placeholder="e.g. Vinny" autocomplete="nickname" spellcheck="false">
+          </label>
+          <div class="avatars" id="avatar-pick" role="radiogroup" aria-label="Pick an avatar"></div>
+        </div>
+        <div class="title-buttons">
+          <button class="big primary" id="btn-create">
+            <b>Create a table</b><small>and get a code to share</small>
+          </button>
+          <button class="big" id="btn-join-open">
+            <b>Join with a code</b><small>four letters from a friend</small>
+          </button>
+        </div>
+        <form class="join-row" id="join-row" hidden>
+          <input id="in-code" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" inputmode="latin">
+          <button type="submit" class="go">Sit down</button>
+        </form>
+        <div class="howto" id="howto">
+          <button class="link" id="btn-how">How the hell does this work?</button>
+          <div class="howto-body" id="howto-body" hidden>
+            <ol>
+              <li><b>The magazine is public.</b> Everyone can see how many live rounds and how many blanks are loaded — see the ring of shells on the table. Nobody knows the <em>order</em>. That is the entire game.</li>
+              <li><b>Shoot somebody else</b> and the turn passes to them.</li>
+              <li><b>Shoot yourself.</b> If it goes <em>bang</em>, you lose a life and the turn moves on. If it clicks <em>blank</em>, you keep the turn and go again. That is the whole gamble.</li>
+              <li><b>Use items freely.</b> Items do not end your turn. You can hold four.</li>
+              <li><b>Last person breathing wins.</b> Everyone else stays to watch and heckle.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- lobby -->
+    <section class="screen" id="scr-lobby" hidden>
+      <div class="lobby">
+        <div class="lobby-head">
+          <small>THE TABLE CODE</small>
+          <div class="code" id="room-code">····</div>
+          <div class="share">
+            <button id="btn-copy">Copy invite link</button>
+            <button id="btn-share" hidden>Share</button>
+          </div>
+          <div class="hint" id="lobby-hint">Everyone opens the link, or types that code.</div>
+        </div>
+        <div class="seats" id="lobby-seats"></div>
+        <div class="lobby-controls" id="lobby-controls"></div>
+        <div class="lobby-chat">
+          <div class="chat-log short" id="lobby-log"></div>
+          <form class="chat-form" id="lobby-form">
+            <input id="lobby-input" maxlength="180" placeholder="Talk while you wait" autocomplete="off">
+            <button type="submit" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M3 20l18-8L3 4v6l12 2-12 2z"/></svg></button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- between rounds / reload -->
+    <section class="screen dim" id="scr-reload" hidden>
+      <div class="reload">
+        <div class="reload-title" id="reload-title">RELOADING</div>
+        <div class="reload-sub" id="reload-sub"></div>
+      </div>
+    </section>
+
+    <!-- game over -->
+    <section class="screen" id="scr-over" hidden>
+      <div class="over">
+        <h2 id="over-title">SOMEBODY WINS</h2>
+        <p class="over-sub" id="over-sub"></p>
+        <div class="over-stats" id="over-stats"></div>
+        <div class="over-buttons">
+          <button class="big primary" id="btn-rematch"><b>Rematch</b><small>same table, new magazine</small></button>
+          <button class="big" id="btn-leave-over"><b>Leave</b><small>walk into the night</small></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- the menu -->
+    <section class="screen" id="scr-menu" hidden>
+      <div class="menu">
+        <h3>The menu</h3>
+        <div class="menu-seats" id="menu-seats"></div>
+        <div class="menu-row">
+          <label>Turn clock</label>
+          <div class="seg" id="menu-clock"></div>
+        </div>
+        <div class="menu-row">
+          <label>Sound</label>
+          <button class="toggle" id="menu-sound">On</button>
+        </div>
+        <div class="menu-row" id="menu-host-row" hidden>
+          <label>Host</label>
+          <div class="seg" id="menu-bots">
+            <button data-bots="add">Add a bot</button>
+            <button data-bots="fill">Fill the table</button>
+          </div>
+        </div>
+        <button class="big danger" id="btn-leave"><b>Leave the table</b><small>your seat will be removed</small></button>
+        <button class="big" id="btn-close-menu"><b>Back</b></button>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast-wrap"></div>
+  <div id="banner"></div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+<noscript><p style="color:#eee;font:16px system-ui;padding:2rem">LAST CALL needs JavaScript to fire the gun.</p></noscript>
+</body>
+</html>

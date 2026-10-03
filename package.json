@@ -1,0 +1,17 @@
+{
+  "name": "last-call",
+  "version": "1.0.0",
+  "description": "LAST CALL — a shotgun party game. A table, a revolver, a magazine of live and blank shells, and your friends. Server-authoritative multiplayer with a hand-written WebGL table.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "build": "node tools/build-single.js",
+    "test": "node tools/test-engine.js 2000 && node tools/test-wire.js",
+    "test:engine": "node tools/test-engine.js 2000",
+    "test:wire": "node tools/test-wire.js",
+    "test:browser": "node tools/test-browser.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "license": "MIT"
+}
