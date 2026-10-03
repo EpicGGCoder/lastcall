@@ -1,5 +1,7 @@
 # LAST CALL
 
+**Live: <https://lastcall-nj19.onrender.com>** — create a room, send the code, play.
+
 **A shotgun party game for 2–6 friends.** One table, one revolver, one magazine
 loaded with a mix of live rounds and blanks. On your turn you point the gun at
 somebody — or at yourself. A blank against your own chin keeps the turn. The
@@ -142,12 +144,39 @@ npm i --no-save playwright-core && npx playwright install chromium-headless-shel
 
 ## Hosting it for real
 
-The client is static and happy anywhere. **The socket server needs a process
-that stays alive** — plain Node, a container, Fly.io, Railway, Render, a VPS,
-a Raspberry Pi in a cupboard. Serverless functions (Vercel, Netlify, Lambda)
-cannot hold a WebSocket open, so they are the wrong home for `server/`;
-host the static `single/lastcall.html` there if you like and point it at a
-socket server elsewhere with `?server=`.
+The production copy of this game runs at **https://lastcall-nj19.onrender.com**
+on a Render free-tier web service (Singapore region), deployed from
+**github.com/EpicGGCoder/lastcall**. Updating the live game is just:
+
+```bash
+git push            # Render auto-deploys the new commit
+```
+
+Free-tier services sleep after ~15 minutes of nobody playing; the first visit
+after a quiet stretch takes up to a minute to wake the table. While anyone is
+connected, the socket traffic keeps it awake.
+
+To recreate the service from scratch (Render API, free plan, no surprises):
+
+```
+POST /v1/services   { type: web_service, name: lastcall,
+  repo: https://github.com/EpicGGCoder/lastcall, branch: main,
+  autoDeploy: yes,
+  serviceDetails: { plan: free, region: singapore, healthCheckPath: /health,
+    env: node,
+    envSpecificDetails: { buildCommand: "echo zero-dependency build",
+                          startCommand: "node server/index.js" } } }
+```
+
+then `POST /v1/services/{id}/deploys` once — the API creates the service
+without starting a build until you ask.
+
+The client is static and happy anywhere; **the socket server needs a process
+that stays alive**. Serverless functions (Vercel, Netlify, Lambda) cannot hold
+a WebSocket open, so they are the wrong home for `server/`; host the static
+`single/lastcall.html` there if you like and point it at a socket server
+elsewhere with `?server=`. A temporary public link with no hosting at all:
+`sh tools/run-public.sh` (game server + Cloudflare quick tunnel in one tree).
 
 The server keeps rooms in memory and sweeps idle ones (30 min in play,
 90 min in lobby, 5 min for a disconnected seat). One process, one table
