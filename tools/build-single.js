@@ -19,7 +19,7 @@ const ROOT = path.join(__dirname, '..');
 const CLIENT = path.join(ROOT, 'client');
 const OUT = path.join(ROOT, 'single', 'lastcall.html');
 
-const ORDER = ['math.js', 'meshes.js', 'glkit.js', 'scene.js', 'audio.js', 'net.js', 'ui.js', 'main.js'];
+const ORDER = ['math.js', 'meshes.js', 'glkit.js', 'scene.js', 'audio.js', 'net.js', 'profile.js', 'ui.js', 'main.js'];
 
 function stripModuleSyntax(src, file) {
   let out = src;

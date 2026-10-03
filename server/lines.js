@@ -100,6 +100,38 @@ const LINES = {
     'Blank. They keep the turn. The pressure does not leave with them.',
     'Still their turn. Somebody make it stop.'
   ],
+  twistMedic: [
+    'A roulette medic is in the building. The first corpse this round is merely a deposit.',
+    'Medic on call. Die once, die politely, come back annoyed.'
+  ],
+  twistDouble: [
+    'Double or nothing. Live rounds bite twice as deep this round.',
+    'The house doubles the damage. The house enjoys itself.'
+  ],
+  twistRain: [
+    'Whiskey rain. Everybody takes an item. No refunds, obviously.',
+    'Free items for everyone. This is not generosity, this is chaos administration.'
+  ],
+  twistSwap: [
+    'Musical chairs. The turn order is now a rumour.',
+    'I have shuffled the seating of fate. Somebody is definitely annoyed.'
+  ],
+  twistGolden: [
+    'A golden shell is in there somewhere. Kill with it and the house pays double.',
+    'One shell wears gold tonight. Murder pays a premium. Think about that.'
+  ],
+  twistFrenzy: [
+    'Frenzy. Half the thinking time, twice the confidence.',
+    'The clock is drunk this round. Decide faster.'
+  ],
+  twistLights: [
+    'Lights down. For atmosphere. And for deniability.',
+    'Somebody dimmed the room. Nobody will admit it.'
+  ],
+  revive: [
+    'The medic drags them back over the line. Welcome back. Sit down.',
+    'Stitch, staple, shove. They are alive again and they are furious.'
+  ],
   over: [
     'And the house declares a survivor. Congratulations, sort of.',
     'One of you is still standing. The rest of you are furniture now.'

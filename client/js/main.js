@@ -17,6 +17,7 @@ import { Scene } from './scene.js';
 import { UI, REACTIONS } from './ui.js';
 import { Net, savedSession, clearSession } from './net.js';
 import { sound } from './audio.js';
+import { bankPayout, profile } from './profile.js';
 
 const byId = (id) => document.getElementById(id);
 
@@ -31,6 +32,8 @@ let gameOverPending = false;
 let startTime = 0;
 let pendingSolo = false;
 let slowmo = 0;
+let matchBanked = false;
+let pendingPayday = 0;
 
 /* ---------------------------------------------------------------------------
    Boot
@@ -70,6 +73,7 @@ function boot() {
     onWelcome: (msg) => {
       ui.you = msg.you.id;
       ui.room = msg.room;
+      scene.applyCosmetics(msg.room.settings);
       turnDeadline = msg.room.turnDeadline || 0;
       if (msg.room.phase === 'lobby') {
         ui.setGameVisible(false);
@@ -96,6 +100,7 @@ function boot() {
     },
     onRoom: (room) => {
       ui.room = room;
+      scene.applyCosmetics(room.settings);
       ui.isHost = room.hostId === ui.you;
       turnDeadline = room.turnDeadline || 0;
       if (ui.currentScreen === 'menu' || room.phase === 'lobby') ui.renderLobby(room, { id: ui.you, isHost: ui.isHost });
@@ -219,7 +224,9 @@ async function drain() {
       if (wIdx >= 0) { scene.setCamera('face', { index: wIdx, count: v.players.length }); camMode = 'face'; }
       else { scene.setCamera('wide'); camMode = 'wide'; }
       await wait(1100);
-      ui.renderOver(v.winnerId);
+      ui.renderOver(v.winnerId, pendingPayday);
+      pendingPayday = 0;
+      ui.refreshCoins && ui.refreshCoins();
     }
   }
 }
@@ -236,6 +243,7 @@ function playEvent(ev, msg) {
 
   switch (ev.type) {
     case 'start':
+      matchBanked = false;
       sound.reload();
       ui.banner('SHELLS LOADED', 'good');
       break;
@@ -361,12 +369,36 @@ function playEvent(ev, msg) {
       }
       break;
 
-    case 'over':
+    case 'over': {
       sound.victory();
+      if (ev.payout && !matchBanked) {
+        matchBanked = true;
+        const me = (msg.view.players || []).find((x) => x.id === ui.you);
+        const pay = ev.payout[ui.you] || 0;
+        bankPayout(pay, me ? { won: msg.view.winnerId === ui.you, kills: me.stats.kills, selfBlanks: me.stats.selfBlanks } : null);
+        pendingPayday = pay;
+      }
       break;
+    }
 
     case 'magEmpty':
       sound.eject();
+      break;
+
+    case 'twist': {
+      const names = {
+        medic: 'ROULETTE MEDIC ON CALL', double: 'DOUBLE OR NOTHING', rain: 'WHISKEY RAIN',
+        swap: 'MUSICAL CHAIRS', golden: 'A GOLDEN SHELL', frenzy: 'FRENZY', lights: 'LIGHTS DOWN'
+      };
+      ui.banner(names[ev.kind] || 'A TWIST', ev.kind === 'double' || ev.kind === 'frenzy' ? 'bad' : 'good');
+      if (ev.kind === 'lights') sound.bad(); else sound.chime(660, 3);
+      break;
+    }
+
+    case 'revive':
+      scene.revive(ev.who);
+      sound.heal();
+      ui.banner('BACK FROM THE FLOOR', 'good');
       break;
   }
 

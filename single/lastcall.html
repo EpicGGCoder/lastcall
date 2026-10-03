@@ -862,6 +862,26 @@ button.chipset.on {
   border-color: var(--brass); color: var(--brass);
 }
 
+/* ── profile, shop, payday ───────────────────────────────────────────────── */
+.profile-strip {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  justify-content: center;
+  font-size: .8rem; color: var(--muted); margin-bottom: .2rem;
+}
+.profile-strip .coin { color: var(--brass); font-size: 1rem; }
+.profile-strip b { color: var(--brass); font-size: 1.05rem; }
+.profile-strip .pstat { opacity: .8; }
+.avatars button.locked { position: relative; opacity: .55; filter: saturate(.4); }
+.avatars button.locked .price,
+button.chipset.locked .price {
+  position: absolute; right: -4px; bottom: -6px;
+  background: var(--ink-3); border: 1px solid var(--brass-dim);
+  color: var(--brass); border-radius: 999px;
+  font-size: .55rem; padding: 0 .3rem; font-style: normal;
+}
+button.chipset.locked { position: relative; opacity: .6; }
+.payday { color: var(--brass); font-weight: 700; white-space: nowrap; }
+
 </style>
 </head>
 <body>
@@ -1443,10 +1463,14 @@ function casing() {
 }
 
 /* The table. A ring of felt over a wooden drum. */
-function table() {
+function table(map) {
+  return tableFor(map);
+}
+function tableFor(map) {
+  const pal = MAP_PALETTES[map] || MAP_PALETTES.backroom;
   return merge([
-    { mesh: cylinder({ r1: 3.15, r2: 3.15, h: 0.16, seg: 40, colour: WOOD }), t: { pos: [0, -0.14, 0] } },
-    { mesh: cylinder({ r1: 3.02, r2: 3.02, h: 0.10, seg: 40, colour: FELT }), t: { pos: [0, 0.02, 0] } },
+    { mesh: cylinder({ r1: 3.15, r2: 3.15, h: 0.16, seg: 40, colour: pal.rim }), t: { pos: [0, -0.14, 0] } },
+    { mesh: cylinder({ r1: 3.02, r2: 3.02, h: 0.10, seg: 40, colour: pal.felt }), t: { pos: [0, 0.02, 0] } },
     { mesh: cylinder({ r1: 3.22, r2: 3.22, h: 0.22, seg: 40, open: true, caps: false, colour: [0.24, 0.11, 0.06] }), t: { pos: [0, -0.10, 0] } },
     { mesh: cylinder({ r1: 0.55, r2: 0.42, h: 0.9, seg: 16, colour: [0.20, 0.10, 0.06] }), t: { pos: [0, -0.62, 0] } },
     { mesh: cylinder({ r1: 1.05, r2: 1.05, h: 0.10, seg: 20, colour: [0.16, 0.08, 0.05] }), t: { pos: [0, -1.05, 0] } }
@@ -1455,27 +1479,86 @@ function table() {
 
 /* The room. Four walls and a floor, seen only at the edges of the lamp light,
    which is exactly how much set dressing this game needs. */
-function room() {
+/* Three rooms, one geometry budget: the maps are palettes plus a couple of
+   signature props, because a room is recognised by its light, not its floor
+   plan. */
+const MAP_PALETTES = {
+  backroom: { wall: [0.07, 0.055, 0.05], floor: [0.05, 0.045, 0.042], felt: [0.06, 0.30, 0.20], rim: [0.42, 0.20, 0.10], shade: [0.55, 0.20, 0.12], bulb: [1.0, 0.92, 0.70] },
+  diner:    { wall: [0.045, 0.13, 0.12], floor: [0.08, 0.09, 0.09],  felt: [0.10, 0.30, 0.28], rim: [0.52, 0.53, 0.56], shade: [0.70, 0.74, 0.78], bulb: [0.85, 0.96, 1.0] },
+  rooftop:  { wall: [0.040, 0.045, 0.10], floor: [0.055, 0.055, 0.07], felt: [0.09, 0.11, 0.19], rim: [0.28, 0.26, 0.24], shade: [0.16, 0.13, 0.26], bulb: [1.0, 0.72, 0.50] }
+};
+
+function room(map) {
+  const pal = MAP_PALETTES[map] || MAP_PALETTES.backroom;
   const R = 9, H = 5.5;
   const wall = [];
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
     wall.push({
-      mesh: box({ w: R * 1.05, h: H, d: 0.2, colour: [0.07, 0.055, 0.05] }),
+      mesh: box({ w: R * 1.05, h: H, d: 0.2, colour: pal.wall }),
       t: { pos: [Math.cos(a) * R, H / 2 - 1.6, Math.sin(a) * R], rot: [0, -a + Math.PI / 2, 0] }
     });
   }
-  wall.push({ mesh: cylinder({ r1: 13, r2: 13, h: 0.3, seg: 24, colour: [0.05, 0.045, 0.042] }), t: { pos: [0, -2.4, 0] } });
+  wall.push({ mesh: cylinder({ r1: 13, r2: 13, h: 0.3, seg: 24, colour: pal.floor }), t: { pos: [0, -2.4, 0] } });
+  if (map === 'diner') {
+    // a neon strip and a chrome rail: the whole identity of the place
+    wall.push({ mesh: box({ w: 7, h: 0.10, d: 0.10, colour: [1.5, 0.35, 0.55] }), t: { pos: [0, 1.6, -8.8] } });
+    wall.push({ mesh: box({ w: 7, h: 0.06, d: 0.06, colour: [0.35, 1.3, 1.2] }), t: { pos: [0, 1.35, -8.8] } });
+  }
+  if (map === 'rooftop') {
+    // skyline: dark slabs beyond the parapet, and stars that cost nothing
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + 0.3;
+      const h = 1.2 + (i % 4) * 0.9;
+      wall.push({ mesh: box({ w: 2.4, h, d: 1.2, colour: [0.02, 0.022, 0.05] }), t: { pos: [Math.cos(a) * 12, h / 2 - 1.2, Math.sin(a) * 12] } });
+    }
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      wall.push({ mesh: box({ w: 0.05, h: 0.05, d: 0.05, colour: [1.4, 1.4, 1.5] }), t: { pos: [Math.cos(a) * 11.5, 3.4 + (i % 3) * 0.7, Math.sin(a) * 11.5] } });
+    }
+  }
   return merge(wall);
 }
 
 /* The lamp. A cone shade with a hot bulb under it and a cord going nowhere. */
-function lamp() {
+function lamp(map) {
+  const pal = MAP_PALETTES[map] || MAP_PALETTES.backroom;
+  const bits = [
+    { mesh: cylinder({ r1: 0.035, r2: 0.035, h: 2.4, seg: 6, colour: [0.05, 0.04, 0.04] }), t: { pos: [0, 3.7, 0] } }
+  ];
+  if (map === 'rooftop') {
+    // a string of bulbs instead of a shade: cheaper than a roof
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      bits.push({ mesh: sphere({ r: 0.16, seg: 8, rings: 6, colour: pal.bulb }), t: { pos: [Math.cos(a) * 0.5, 1.95 - (i % 2) * 0.15, Math.sin(a) * 0.5] } });
+      bits.push({ mesh: cylinder({ r1: 0.012, r2: 0.012, h: 1.2, seg: 5, colour: [0.06, 0.05, 0.05] }), t: { pos: [Math.cos(a) * 0.5, 2.6, Math.sin(a) * 0.5], rot: [0.3 * Math.cos(a), 0, 0.3 * Math.sin(a)] } });
+    }
+  } else {
+    bits.push({ mesh: cylinder({ r1: 1.9, r2: 0.42, h: 0.85, seg: 28, open: true, caps: false, colour: pal.shade }), t: { pos: [0, 2.05, 0] } });
+    bits.push({ mesh: cylinder({ r1: 0.44, r2: 0.44, h: 0.05, seg: 16, colour: [0.12, 0.05, 0.04] }), t: { pos: [0, 2.46, 0] } });
+    bits.push({ mesh: sphere({ r: 0.20, seg: 10, rings: 7, colour: pal.bulb }), t: { pos: [0, 1.80, 0] } });
+  }
+  return merge(bits);
+}
+
+/* Two more guns and a precious one. The golden revolver is the revolver,
+   drawn with a tint — vanity should not cost triangles. */
+function sawedoff() {
   return merge([
-    { mesh: cylinder({ r1: 1.9, r2: 0.42, h: 0.85, seg: 28, open: true, caps: false, colour: LAMPSHADE }), t: { pos: [0, 2.05, 0] } },
-    { mesh: cylinder({ r1: 0.44, r2: 0.44, h: 0.05, seg: 16, colour: [0.12, 0.05, 0.04] }), t: { pos: [0, 2.46, 0] } },
-    { mesh: cylinder({ r1: 0.035, r2: 0.035, h: 2.4, seg: 6, colour: [0.05, 0.04, 0.04] }), t: { pos: [0, 3.7, 0] } },
-    { mesh: sphere({ r: 0.20, seg: 10, rings: 7, colour: [1.0, 0.92, 0.70] }), t: { pos: [0, 1.80, 0] } }
+    { mesh: cylinder({ r1: 0.10, r2: 0.10, h: 0.95, seg: 12, colour: [0.22, 0.24, 0.28] }), t: { pos: [0, 0, -0.55], rot: [1.5708, 0, 0] } },
+    { mesh: cylinder({ r1: 0.16, r2: 0.16, h: 0.34, seg: 12, colour: [0.30, 0.32, 0.37] }), t: { pos: [0, 0, -0.05], rot: [1.5708, 0, 0] } },
+    { mesh: box({ w: 0.10, h: 0.34, d: 0.16, colour: [0.35, 0.18, 0.09] }), t: { pos: [0, -0.20, 0.22], rot: [0.35, 0, 0] } },
+    { mesh: box({ w: 0.06, h: 0.10, d: 0.10, colour: [0.22, 0.24, 0.28] }), t: { pos: [0, 0.14, 0.10] } }
+  ]);
+}
+
+function flintlock() {
+  return merge([
+    { mesh: cylinder({ r1: 0.05, r2: 0.055, h: 2.1, seg: 10, colour: [0.24, 0.26, 0.30] }), t: { pos: [0, 0.02, -0.85], rot: [1.5708, 0, 0] } },
+    { mesh: cylinder({ r1: 0.09, r2: 0.09, h: 0.5, seg: 10, colour: [0.40, 0.24, 0.12] }), t: { pos: [0, -0.02, 0.42], rot: [1.5708, 0, 0] } },
+    { mesh: box({ w: 0.07, h: 0.30, d: 0.14, colour: [0.40, 0.24, 0.12] }), t: { pos: [0, -0.18, 0.62], rot: [0.5, 0, 0] } },
+    { mesh: sphere({ r: 0.06, seg: 8, rings: 6, colour: [0.55, 0.50, 0.40] }), t: { pos: [0.06, 0.10, 0.30] } },
+    { mesh: box({ w: 0.03, h: 0.12, d: 0.03, colour: [0.55, 0.50, 0.40] }), t: { pos: [0, 0.10, -1.75] } }
   ]);
 }
 
@@ -1841,6 +1924,20 @@ class Renderer {
     if (key) this.buffers.set(key, rec);
     this.triangles += mesh.count / 3;
     return rec;
+  }
+
+  /* Swap a keyed mesh for new geometry (maps, guns). The cache that makes
+     static draws cheap would otherwise make re-uploads silent no-ops. */
+  replace(mesh, key) {
+    const old = this.buffers.get(key);
+    if (old) {
+      this.gl.deleteBuffer(old.vbo);
+      this.gl.deleteBuffer(old.nbo);
+      this.gl.deleteBuffer(old.cbo);
+      this.gl.deleteBuffer(old.ibo);
+      this.buffers.delete(key);
+    }
+    return this.upload(mesh, key);
   }
 
   /* Upload a point cloud used for dust and sparks. */
@@ -2209,6 +2306,25 @@ class Scene {
     return [Math.cos(a) * SEAT_RADIUS, SEAT_HEIGHT, Math.sin(a) * SEAT_RADIUS];
   }
 
+  /* Maps and guns are buffer swaps, not scenes: same draw calls, new paint. */
+  applyCosmetics(settings) {
+    const st = settings || {};
+    const map = st.map || 'backroom';
+    const weapon = st.weapon || 'revolver';
+    if (map !== this.curMap) {
+      this.curMap = map;
+      this.assets.room = this.renderer.replace(room(map), 'room');
+      this.assets.table = this.renderer.replace(table(map), 'table');
+      this.assets.lamp = this.renderer.replace(lamp(map), 'lamp');
+    }
+    if (weapon !== this.curWeapon) {
+      this.curWeapon = weapon;
+      const mesh = weapon === 'sawedoff' ? sawedoff() : weapon === 'flintlock' ? flintlock() : revolver();
+      this.assets.gun = this.renderer.replace(mesh, 'gun');
+    }
+    this.gunTint = weapon === 'golden' ? [1.5, 1.18, 0.40] : [1, 1, 1];
+  }
+
   /* ---------------------------------------------------------------- people */
   /* One rig per seated player: seven GPU buffers and a little state machine.
      Rebuilt only when somebody's avatar changes; animated every frame. */
@@ -2541,8 +2657,8 @@ class Scene {
         (0.92 + flashBoost * 1.2) * this.flashColour[1] * flicker,
         (0.68 + flashBoost * 0.7) * this.flashColour[2] * flicker
       ],
-      power: 7.4 * flicker,
-      ambient: [0.030, 0.026, 0.032],
+      power: 7.4 * flicker * (state && state.twist === 'lights' ? 0.55 : 1),
+      ambient: [0.030, 0.026, 0.032].map((a) => a * (state && state.twist === 'lights' ? 0.55 : 1)),
       ambientBoost: flashBoost * 0.55
     };
 
@@ -2676,7 +2792,7 @@ class Scene {
       [this.gunTilt, this.gunSpin, 0],
       [1, 1, 1]
     );
-    r.draw(this.assets.gun, gm, M4.normalFrom(gm), {
+    r.draw(this.assets.gun, gm, M4.normalFrom(gm), { tint: this.gunTint || [1, 1, 1],
       rim: 0.42,
       tint: [1 + flashBoost * 0.8, 1 + flashBoost * 0.7, 1 + flashBoost * 0.5]
     });
@@ -3117,6 +3233,103 @@ class Net {
   }
 }
 
+/* ---- profile.js ---- */
+/* ============================================================================
+   LAST CALL — profile, coins, unlocks
+   ----------------------------------------------------------------------------
+   Your face, your pile of coins, and the things they have bought. Stored in
+   the browser: no passwords, no server round-trip, works offline and in the
+   single-file build. Coins are earned from server-computed match payouts
+   (kills, self-blanks, survival), so the economy rides on the authoritative
+   result — the browser only keeps score of what the server already declared.
+   ========================================================================== */
+'use strict';
+
+const KEY = 'lastcall.profile.v1';
+
+/* The shop. Prices are tuned against a typical payout of 8–20 coins a match:
+   a new face is two good nights out; the golden gun is a week of nerve. */
+const SHOP = {
+  chars: {
+    fedora: 0, shades: 0, moustache: 0, cigarette: 0, cat: 0,
+    moth: 40, skull: 60, cactus: 80, toucan: 100, toaster: 120
+  },
+  weapons: { revolver: 0, sawedoff: 60, flintlock: 90, golden: 150 },
+  maps: { backroom: 0, diner: 70, rooftop: 110 }
+};
+
+const CHAR_BLURB = {
+  fedora: 'The regular. Owns three hats, wears one.',
+  shades: 'Has not made eye contact since 2019.',
+  moustache: 'The moustache plays; the man assists.',
+  cigarette: 'Indoors. Obviously.',
+  cat: 'Nine lives down to a sensible number.',
+  moth: 'Here for the lamp. Stay for the violence.',
+  skull: 'Wrestles on weekends. Loses politely.',
+  cactus: 'Hug at your own risk.',
+  toucan: 'The beak compensates for something.',
+  toaster: 'Technically alive. Debatably bread.'
+};
+
+const blankProfile = () => ({
+  name: '', avatar: 'fedora', coins: 0,
+  unlocked: { chars: ['fedora', 'shades', 'moustache', 'cigarette', 'cat'], weapons: ['revolver'], maps: ['backroom'] },
+  stats: { matches: 0, wins: 0, kills: 0, selfBlanks: 0, deaths: 0 }
+});
+
+let P = null;
+
+function load() {
+  if (P) return P;
+  try {
+    const raw = localStorage.getItem(KEY);
+    P = raw ? Object.assign(blankProfile(), JSON.parse(raw)) : blankProfile();
+    // heal anything an older build forgot
+    const b = blankProfile();
+    P.unlocked = Object.assign(b.unlocked, P.unlocked || {});
+    P.stats = Object.assign(b.stats, P.stats || {});
+  } catch (e) { P = blankProfile(); }
+  return P;
+}
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {}
+}
+
+function profile() { return load(); }
+
+function setName(n) { load().name = n; save(); }
+function setAvatar(a) { load().avatar = a; save(); }
+
+function price(cat, id) { return (SHOP[cat] || {})[id] || 0; }
+function isUnlocked(cat, id) { return load().unlocked[cat].includes(id); }
+
+function unlock(cat, id) {
+  const p = load();
+  const cost = price(cat, id);
+  if (p.unlocked[cat].includes(id)) return { ok: true, already: true };
+  if (p.coins < cost) return { ok: false, need: cost - p.coins };
+  p.coins -= cost;
+  p.unlocked[cat].push(id);
+  save();
+  return { ok: true, spent: cost };
+}
+
+/* The server declares what a match paid. We bank it and remember the night. */
+function bankPayout(coins, result) {
+  const p = load();
+  p.coins += coins || 0;
+  p.stats.matches++;
+  if (result && result.won) p.stats.wins++;
+  if (result) {
+    p.stats.kills += result.kills || 0;
+    p.stats.selfBlanks += result.selfBlanks || 0;
+    if (!result.won) p.stats.deaths++;
+  }
+  save();
+  return p;
+}
+
 /* ---- ui.js ---- */
 /* ============================================================================
    LAST CALL — the interface
@@ -3214,12 +3427,11 @@ class UI {
     });
 
     // persist the name/avatar between visits
-    try {
-      const saved = JSON.parse(localStorage.getItem('lastcall.identity') || '{}');
-      if (saved.name) $('in-name').value = saved.name;
-      if (saved.avatar && AVATAR[saved.avatar]) this.setAvatar(saved.avatar);
-    } catch (e) {}
+    const p = profile();
+    if (p.name) $('in-name').value = p.name;
+    if (p.avatar && AVATAR[p.avatar]) this.avatar = p.avatar;
     $('in-name').addEventListener('input', () => this.saveIdentity());
+    this.refreshCoins();
 
     $('btn-copy').addEventListener('click', () => this.copyInvite());
     $('btn-share').addEventListener('click', () => this.shareInvite());
@@ -3267,16 +3479,45 @@ class UI {
   buildAvatars() {
     const wrap = $('avatar-pick');
     wrap.innerHTML = '';
+    const p = profile();
     Object.keys(AVATAR).forEach((k) => {
-      const b = el('button', '', AVATAR[k]);
+      const owned = isUnlocked('chars', k);
+      const b = el('button', owned ? '' : 'locked', AVATAR[k] + (owned ? '' : `<span class="price">${price('chars', k)}</span>`));
       b.dataset.av = k;
       b.type = 'button';
-      b.title = k;
+      b.title = CHAR_BLURB[k] || k;
       b.setAttribute('aria-label', k);
-      b.addEventListener('click', () => { this.setAvatar(k); this.saveIdentity(); });
+      b.addEventListener('click', () => {
+        if (owned || isUnlocked('chars', k)) { this.setAvatar(k); setName(this.pendingName()); return; }
+        const res = unlock('chars', k);
+        if (res.ok) {
+          this.toast('Unlocked ' + k + ' for ' + res.spent + ' coins.');
+          this.buildAvatars(); this.setAvatar(k); this.refreshCoins();
+        } else {
+          this.toast('Need ' + res.need + ' more coins. Go survive something.', 'bad');
+        }
+      });
       wrap.appendChild(b);
     });
     this.setAvatar(this.avatar);
+  }
+
+  pendingName() { return ($('in-name').value || '').trim().slice(0, 16); }
+
+  /* the little brass economy, always visible on the title screen */
+  refreshCoins() {
+    const p = profile();
+    let strip = $('profile-strip');
+    if (!strip) {
+      strip = el('div', 'profile-strip');
+      strip.id = 'profile-strip';
+      const ident = document.querySelector('.identity');
+      if (ident) ident.parentNode.insertBefore(strip, ident);
+    }
+    strip.innerHTML =
+      `<span class="coin" title="coins">◉</span><b>${p.coins}</b>` +
+      `<span class="pstat">${p.stats.wins}W · ${p.stats.matches} played</span>` +
+      `<span class="pstat">${p.stats.kills} kills · ${p.stats.selfBlanks} nerve</span>`;
   }
 
   buildReactions() {
@@ -3317,7 +3558,8 @@ class UI {
     return { name: raw || 'Someone', avatar: this.avatar };
   }
   saveIdentity() {
-    try { localStorage.setItem('lastcall.identity', JSON.stringify(this.identity())); } catch (e) {}
+    setName(this.pendingName() || 'Someone');
+    setAvatar(this.avatar);
   }
 
   copyInvite() {
@@ -3444,8 +3686,12 @@ class UI {
       controls.appendChild(this.settingsPanel(room));
       const seats = room.settings.seats || 4;
       const here = room.players.length;
+      const humans = room.humans != null ? room.humans : here;
+      const fillNote = humans === 1 && here < seats
+        ? 'regulars fill the ' + (seats - here) + ' empty seats'
+        : here + ' at the table — dealing as is';
       const start = el('button', 'big primary',
-        `<b>Deal the shells</b><small>${here >= seats ? here + ' at the table — dealing as is' : seats + ' seats; regulars fill the ' + (seats - here) + ' empty'}</small>`);
+        `<b>Deal the shells</b><small>${fillNote}</small>`);
       start.addEventListener('click', () => this.h.onStart && this.h.onStart());
       controls.appendChild(start);
 
@@ -3479,9 +3725,18 @@ class UI {
       g.innerHTML = `<span class="set-label">${label}</span>`;
       const row = el('div', 'set-row');
       opts.forEach(([val, text]) => {
-        const b = el('button', 'chipset' + (cur === val ? ' on' : ''), text);
+        const cat = key === 'map' ? 'maps' : key === 'weapon' ? 'weapons' : null;
+        const owned = !cat || isUnlocked(cat, val);
+        const b = el('button', 'chipset' + (cur === val ? ' on' : '') + (owned ? '' : ' locked'),
+          text + (owned ? '' : ` <i class="price">${price(cat, val)}</i>`));
         b.type = 'button';
         b.addEventListener('click', () => {
+          if (cat && !owned) {
+            const res = unlock(cat, val);
+            if (!res.ok) return this.toast('Need ' + res.need + ' more coins for that.', 'bad');
+            this.toast('Unlocked ' + text + '.', '');
+            this.renderLobby(this.room, { id: this.you, isHost: this.isHost });
+          }
           this.h.onSettings && this.h.onSettings({ [key]: val });
         });
         row.appendChild(b);
@@ -3855,7 +4110,7 @@ class UI {
   }
 
   /* ── game over ────────────────────────────────────────────────────────── */
-  renderOver(winnerId) {
+  renderOver(winnerId, payday) {
     const v = this.state;
     if (!v) return;
     const won = winnerId === this.you;
@@ -3866,9 +4121,10 @@ class UI {
 
     const me = v.players.find((p) => p.id === this.you);
     const myPos = v.players.filter((p) => p.alive).length;
-    $('over-sub').textContent = won
+    $('over-sub').innerHTML = (won
       ? 'The house congratulates you in the way it congratulates anyone: by loading another magazine.'
-      : 'You lasted ' + v.round + ' magazine' + (v.round === 1 ? '' : 's') + '. The floor is comfortable once you commit to it.';
+      : 'You lasted ' + v.round + ' magazine' + (v.round === 1 ? '' : 's') + '. The floor is comfortable once you commit to it.')
+      + (payday ? ` <span class="payday">+${payday} ◉</span>` : '');
 
     const ranked = v.players.slice().sort((a, b) => {
       if (a.alive !== b.alive) return a.alive ? -1 : 1;
@@ -3994,6 +4250,7 @@ function seededOrder(n, salt) {
 
 
 
+
 const byId = (id) => document.getElementById(id);
 
 let scene, ui, net;
@@ -4007,6 +4264,8 @@ let gameOverPending = false;
 let startTime = 0;
 let pendingSolo = false;
 let slowmo = 0;
+let matchBanked = false;
+let pendingPayday = 0;
 
 /* ---------------------------------------------------------------------------
    Boot
@@ -4046,6 +4305,7 @@ function boot() {
     onWelcome: (msg) => {
       ui.you = msg.you.id;
       ui.room = msg.room;
+      scene.applyCosmetics(msg.room.settings);
       turnDeadline = msg.room.turnDeadline || 0;
       if (msg.room.phase === 'lobby') {
         ui.setGameVisible(false);
@@ -4072,6 +4332,7 @@ function boot() {
     },
     onRoom: (room) => {
       ui.room = room;
+      scene.applyCosmetics(room.settings);
       ui.isHost = room.hostId === ui.you;
       turnDeadline = room.turnDeadline || 0;
       if (ui.currentScreen === 'menu' || room.phase === 'lobby') ui.renderLobby(room, { id: ui.you, isHost: ui.isHost });
@@ -4195,7 +4456,9 @@ async function drain() {
       if (wIdx >= 0) { scene.setCamera('face', { index: wIdx, count: v.players.length }); camMode = 'face'; }
       else { scene.setCamera('wide'); camMode = 'wide'; }
       await wait(1100);
-      ui.renderOver(v.winnerId);
+      ui.renderOver(v.winnerId, pendingPayday);
+      pendingPayday = 0;
+      ui.refreshCoins && ui.refreshCoins();
     }
   }
 }
@@ -4212,6 +4475,7 @@ function playEvent(ev, msg) {
 
   switch (ev.type) {
     case 'start':
+      matchBanked = false;
       sound.reload();
       ui.banner('SHELLS LOADED', 'good');
       break;
@@ -4337,12 +4601,36 @@ function playEvent(ev, msg) {
       }
       break;
 
-    case 'over':
+    case 'over': {
       sound.victory();
+      if (ev.payout && !matchBanked) {
+        matchBanked = true;
+        const me = (msg.view.players || []).find((x) => x.id === ui.you);
+        const pay = ev.payout[ui.you] || 0;
+        bankPayout(pay, me ? { won: msg.view.winnerId === ui.you, kills: me.stats.kills, selfBlanks: me.stats.selfBlanks } : null);
+        pendingPayday = pay;
+      }
       break;
+    }
 
     case 'magEmpty':
       sound.eject();
+      break;
+
+    case 'twist': {
+      const names = {
+        medic: 'ROULETTE MEDIC ON CALL', double: 'DOUBLE OR NOTHING', rain: 'WHISKEY RAIN',
+        swap: 'MUSICAL CHAIRS', golden: 'A GOLDEN SHELL', frenzy: 'FRENZY', lights: 'LIGHTS DOWN'
+      };
+      ui.banner(names[ev.kind] || 'A TWIST', ev.kind === 'double' || ev.kind === 'frenzy' ? 'bad' : 'good');
+      if (ev.kind === 'lights') sound.bad(); else sound.chime(660, 3);
+      break;
+    }
+
+    case 'revive':
+      scene.revive(ev.who);
+      sound.heal();
+      ui.banner('BACK FROM THE FLOOR', 'good');
       break;
   }
 

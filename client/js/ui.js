@@ -12,6 +12,8 @@
    ========================================================================== */
 'use strict';
 
+import { profile, setName, setAvatar, unlock, isUnlocked, price, CHAR_BLURB } from './profile.js';
+
 /* ── icons ──────────────────────────────────────────────────────────────── */
 const S = (d, extra) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}${extra || ''}</svg>`;
 
@@ -94,12 +96,11 @@ export class UI {
     });
 
     // persist the name/avatar between visits
-    try {
-      const saved = JSON.parse(localStorage.getItem('lastcall.identity') || '{}');
-      if (saved.name) $('in-name').value = saved.name;
-      if (saved.avatar && AVATAR[saved.avatar]) this.setAvatar(saved.avatar);
-    } catch (e) {}
+    const p = profile();
+    if (p.name) $('in-name').value = p.name;
+    if (p.avatar && AVATAR[p.avatar]) this.avatar = p.avatar;
     $('in-name').addEventListener('input', () => this.saveIdentity());
+    this.refreshCoins();
 
     $('btn-copy').addEventListener('click', () => this.copyInvite());
     $('btn-share').addEventListener('click', () => this.shareInvite());
@@ -147,16 +148,45 @@ export class UI {
   buildAvatars() {
     const wrap = $('avatar-pick');
     wrap.innerHTML = '';
+    const p = profile();
     Object.keys(AVATAR).forEach((k) => {
-      const b = el('button', '', AVATAR[k]);
+      const owned = isUnlocked('chars', k);
+      const b = el('button', owned ? '' : 'locked', AVATAR[k] + (owned ? '' : `<span class="price">${price('chars', k)}</span>`));
       b.dataset.av = k;
       b.type = 'button';
-      b.title = k;
+      b.title = CHAR_BLURB[k] || k;
       b.setAttribute('aria-label', k);
-      b.addEventListener('click', () => { this.setAvatar(k); this.saveIdentity(); });
+      b.addEventListener('click', () => {
+        if (owned || isUnlocked('chars', k)) { this.setAvatar(k); setName(this.pendingName()); return; }
+        const res = unlock('chars', k);
+        if (res.ok) {
+          this.toast('Unlocked ' + k + ' for ' + res.spent + ' coins.');
+          this.buildAvatars(); this.setAvatar(k); this.refreshCoins();
+        } else {
+          this.toast('Need ' + res.need + ' more coins. Go survive something.', 'bad');
+        }
+      });
       wrap.appendChild(b);
     });
     this.setAvatar(this.avatar);
+  }
+
+  pendingName() { return ($('in-name').value || '').trim().slice(0, 16); }
+
+  /* the little brass economy, always visible on the title screen */
+  refreshCoins() {
+    const p = profile();
+    let strip = $('profile-strip');
+    if (!strip) {
+      strip = el('div', 'profile-strip');
+      strip.id = 'profile-strip';
+      const ident = document.querySelector('.identity');
+      if (ident) ident.parentNode.insertBefore(strip, ident);
+    }
+    strip.innerHTML =
+      `<span class="coin" title="coins">◉</span><b>${p.coins}</b>` +
+      `<span class="pstat">${p.stats.wins}W · ${p.stats.matches} played</span>` +
+      `<span class="pstat">${p.stats.kills} kills · ${p.stats.selfBlanks} nerve</span>`;
   }
 
   buildReactions() {
@@ -197,7 +227,8 @@ export class UI {
     return { name: raw || 'Someone', avatar: this.avatar };
   }
   saveIdentity() {
-    try { localStorage.setItem('lastcall.identity', JSON.stringify(this.identity())); } catch (e) {}
+    setName(this.pendingName() || 'Someone');
+    setAvatar(this.avatar);
   }
 
   copyInvite() {
@@ -324,8 +355,12 @@ export class UI {
       controls.appendChild(this.settingsPanel(room));
       const seats = room.settings.seats || 4;
       const here = room.players.length;
+      const humans = room.humans != null ? room.humans : here;
+      const fillNote = humans === 1 && here < seats
+        ? 'regulars fill the ' + (seats - here) + ' empty seats'
+        : here + ' at the table — dealing as is';
       const start = el('button', 'big primary',
-        `<b>Deal the shells</b><small>${here >= seats ? here + ' at the table — dealing as is' : seats + ' seats; regulars fill the ' + (seats - here) + ' empty'}</small>`);
+        `<b>Deal the shells</b><small>${fillNote}</small>`);
       start.addEventListener('click', () => this.h.onStart && this.h.onStart());
       controls.appendChild(start);
 
@@ -359,9 +394,18 @@ export class UI {
       g.innerHTML = `<span class="set-label">${label}</span>`;
       const row = el('div', 'set-row');
       opts.forEach(([val, text]) => {
-        const b = el('button', 'chipset' + (cur === val ? ' on' : ''), text);
+        const cat = key === 'map' ? 'maps' : key === 'weapon' ? 'weapons' : null;
+        const owned = !cat || isUnlocked(cat, val);
+        const b = el('button', 'chipset' + (cur === val ? ' on' : '') + (owned ? '' : ' locked'),
+          text + (owned ? '' : ` <i class="price">${price(cat, val)}</i>`));
         b.type = 'button';
         b.addEventListener('click', () => {
+          if (cat && !owned) {
+            const res = unlock(cat, val);
+            if (!res.ok) return this.toast('Need ' + res.need + ' more coins for that.', 'bad');
+            this.toast('Unlocked ' + text + '.', '');
+            this.renderLobby(this.room, { id: this.you, isHost: this.isHost });
+          }
           this.h.onSettings && this.h.onSettings({ [key]: val });
         });
         row.appendChild(b);
@@ -735,7 +779,7 @@ export class UI {
   }
 
   /* ── game over ────────────────────────────────────────────────────────── */
-  renderOver(winnerId) {
+  renderOver(winnerId, payday) {
     const v = this.state;
     if (!v) return;
     const won = winnerId === this.you;
@@ -746,9 +790,10 @@ export class UI {
 
     const me = v.players.find((p) => p.id === this.you);
     const myPos = v.players.filter((p) => p.alive).length;
-    $('over-sub').textContent = won
+    $('over-sub').innerHTML = (won
       ? 'The house congratulates you in the way it congratulates anyone: by loading another magazine.'
-      : 'You lasted ' + v.round + ' magazine' + (v.round === 1 ? '' : 's') + '. The floor is comfortable once you commit to it.';
+      : 'You lasted ' + v.round + ' magazine' + (v.round === 1 ? '' : 's') + '. The floor is comfortable once you commit to it.')
+      + (payday ? ` <span class="payday">+${payday} ◉</span>` : '');
 
     const ranked = v.players.slice().sort((a, b) => {
       if (a.alive !== b.alive) return a.alive ? -1 : 1;

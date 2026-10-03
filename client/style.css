@@ -849,3 +849,23 @@ button.chipset.on {
   background: rgba(232, 176, 75, .16);
   border-color: var(--brass); color: var(--brass);
 }
+
+/* ── profile, shop, payday ───────────────────────────────────────────────── */
+.profile-strip {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  justify-content: center;
+  font-size: .8rem; color: var(--muted); margin-bottom: .2rem;
+}
+.profile-strip .coin { color: var(--brass); font-size: 1rem; }
+.profile-strip b { color: var(--brass); font-size: 1.05rem; }
+.profile-strip .pstat { opacity: .8; }
+.avatars button.locked { position: relative; opacity: .55; filter: saturate(.4); }
+.avatars button.locked .price,
+button.chipset.locked .price {
+  position: absolute; right: -4px; bottom: -6px;
+  background: var(--ink-3); border: 1px solid var(--brass-dim);
+  color: var(--brass); border-radius: 999px;
+  font-size: .55rem; padding: 0 .3rem; font-style: normal;
+}
+button.chipset.locked { position: relative; opacity: .6; }
+.payday { color: var(--brass); font-weight: 700; white-space: nowrap; }

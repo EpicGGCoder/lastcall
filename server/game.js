@@ -111,7 +111,7 @@ function createGame(players, rng) {
       items: [],
       cuffed: false,
       sawed: false,
-      stats: { shots: 0, selfShots: 0, damageDealt: 0, damageTaken: 0, kills: 0, itemsUsed: 0, survived: 0 }
+      stats: { shots: 0, selfShots: 0, selfBlanks: 0, damageDealt: 0, damageTaken: 0, kills: 0, goldenKills: 0, itemsUsed: 0, survived: 0 }
     })),
     order: players.map((p) => p.id),
     turnIndex: 0,
@@ -151,6 +151,53 @@ function loadMagazine(game, rng, events) {
   game.peek = {};
   game.phone = {};
   events.push({ type: 'reload', live: game.mag.live, blank: game.mag.blank, size: game.mag.size, round: game.round });
+}
+
+/* Round twists: the reason no two magazines feel the same. Rolled between
+   rounds, scaled by the host's chaos setting, announced to everyone at once. */
+const TWISTS = ['medic', 'double', 'rain', 'swap', 'golden', 'frenzy', 'lights'];
+
+function rollTwist(game, rng, events) {
+  game.twist = null;
+  game.medicUsed = false;
+  if (game.pendingRevive) {
+    const p = byId(game, game.pendingRevive);
+    game.pendingRevive = null;
+    if (p && !p.alive) {
+      p.alive = true; p.hp = 1; p.cuffed = false; p.sawed = false;
+      events.push({ type: 'revive', who: p.id });
+    }
+  }
+  const chance = game.chaos === 'chill' ? 0 : game.chaos === 'chaos' ? 0.9 : 0.5;
+  if (game.round < 2 || rng() > chance) return;
+  const kind = TWISTS[Math.floor(rng() * TWISTS.length)];
+  game.twist = kind;
+  events.push({ type: 'twist', kind });
+  if (kind === 'rain') {
+    alive(game).forEach((p) => {
+      if (p.items.length < HAND_LIMIT) p.items.push(ITEM_IDS[Math.floor(rng() * ITEM_IDS.length)]);
+    });
+  }
+  if (kind === 'swap') {
+    for (let i = game.order.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const t = game.order[i]; game.order[i] = game.order[j]; game.order[j] = t;
+    }
+    // the shuffle must never park the turn on a corpse
+    game.turnIndex = nextAliveIndex(game, game.turnIndex);
+  }
+}
+
+/* What a match pays out, in coins. Kills, nerve (self-blanks), and simply
+   still being vertical. Golden-shell kills pay double. */
+function payout(game) {
+  const out = {};
+  game.players.forEach((p) => {
+    const gk = p.stats.goldenKills || 0;
+    out[p.id] = (p.stats.kills - gk) * 3 + gk * 6 + (p.stats.selfBlanks || 0) * 2
+      + p.stats.survived * 10 + game.round;
+  });
+  return out;
 }
 
 function dealItems(game, rng, events) {
@@ -201,7 +248,7 @@ function checkOver(game, events, rng) {
     game.phase = 'over';
     game.winnerId = living.length ? living[0].id : null;
     if (living.length) living[0].stats.survived = 1;
-    events.push({ type: 'over', winner: game.winnerId });
+    events.push({ type: 'over', winner: game.winnerId, payout: payout(game) });
     return true;
   }
   return false;
@@ -212,6 +259,7 @@ function maybeReload(game, rng, events) {
   if (game.mag.idx < game.mag.seq.length) return false;
   game.round++;
   events.push({ type: 'magEmpty' });
+  rollTwist(game, rng, events);
   loadMagazine(game, rng, events);
   dealItems(game, rng, events);
   return true;
@@ -247,7 +295,8 @@ function doShoot(game, p, targetId, rng, events) {
   if (shell === null) return fail('The magazine is empty. That should not be possible.');
 
   game.mag.idx++;
-  const damage = shell === 'live' ? (p.sawed ? 2 : 1) : 0;
+  const mult = game.twist === 'double' ? 2 : 1;
+  const damage = shell === 'live' ? (p.sawed ? 2 : 1) * mult : 0;
   const sawWasSet = p.sawed;
   p.sawed = false;
   p.stats.shots++;
@@ -260,7 +309,9 @@ function doShoot(game, p, targetId, rng, events) {
     if (target.hp <= 0) {
       target.hp = 0;
       target.alive = false;
+      if (game.twist === 'medic' && !game.medicUsed) { game.medicUsed = true; game.pendingRevive = target.id; }
       p.stats.kills++;
+      if (game.twist === 'golden') p.stats.goldenKills++;
       events.push({ type: 'out', who: target.id, by: p.id });
     }
   }
@@ -273,6 +324,7 @@ function doShoot(game, p, targetId, rng, events) {
 
   // A blank fired at yourself is the whole point: you keep the turn.
   const keepsTurn = isSelf && shell === 'blank';
+  if (keepsTurn) p.stats.selfBlanks++;
   if (keepsTurn) {
     events.push({ type: 'keepsTurn', who: p.id });
   }
@@ -420,6 +472,7 @@ function doItem(game, p, action, rng, events) {
    ------------------------------------------------------------------------- */
 function publicView(game) {
   return {
+    twist: game.twist || null,
     phase: game.phase,
     round: game.round,
     turnId: game.phase === 'turn' ? game.order[game.turnIndex] : null,
@@ -465,7 +518,7 @@ function privateFor(game, playerId) {
   return out;
 }
 
-module.exports = {
+module.exports = { TWISTS, payout,
   ITEMS, ITEM_IDS, HAND_LIMIT, MAX_PLAYERS, MIN_PLAYERS,
   magazineSize, startingLives, itemsPerRound, makeMagazine,
   createGame, startGame, act, publicView, privateFor,

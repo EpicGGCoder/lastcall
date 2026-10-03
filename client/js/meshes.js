@@ -263,10 +263,14 @@ export function casing() {
 }
 
 /* The table. A ring of felt over a wooden drum. */
-export function table() {
+export function table(map) {
+  return tableFor(map);
+}
+function tableFor(map) {
+  const pal = MAP_PALETTES[map] || MAP_PALETTES.backroom;
   return merge([
-    { mesh: cylinder({ r1: 3.15, r2: 3.15, h: 0.16, seg: 40, colour: WOOD }), t: { pos: [0, -0.14, 0] } },
-    { mesh: cylinder({ r1: 3.02, r2: 3.02, h: 0.10, seg: 40, colour: FELT }), t: { pos: [0, 0.02, 0] } },
+    { mesh: cylinder({ r1: 3.15, r2: 3.15, h: 0.16, seg: 40, colour: pal.rim }), t: { pos: [0, -0.14, 0] } },
+    { mesh: cylinder({ r1: 3.02, r2: 3.02, h: 0.10, seg: 40, colour: pal.felt }), t: { pos: [0, 0.02, 0] } },
     { mesh: cylinder({ r1: 3.22, r2: 3.22, h: 0.22, seg: 40, open: true, caps: false, colour: [0.24, 0.11, 0.06] }), t: { pos: [0, -0.10, 0] } },
     { mesh: cylinder({ r1: 0.55, r2: 0.42, h: 0.9, seg: 16, colour: [0.20, 0.10, 0.06] }), t: { pos: [0, -0.62, 0] } },
     { mesh: cylinder({ r1: 1.05, r2: 1.05, h: 0.10, seg: 20, colour: [0.16, 0.08, 0.05] }), t: { pos: [0, -1.05, 0] } }
@@ -275,27 +279,86 @@ export function table() {
 
 /* The room. Four walls and a floor, seen only at the edges of the lamp light,
    which is exactly how much set dressing this game needs. */
-export function room() {
+/* Three rooms, one geometry budget: the maps are palettes plus a couple of
+   signature props, because a room is recognised by its light, not its floor
+   plan. */
+export const MAP_PALETTES = {
+  backroom: { wall: [0.07, 0.055, 0.05], floor: [0.05, 0.045, 0.042], felt: [0.06, 0.30, 0.20], rim: [0.42, 0.20, 0.10], shade: [0.55, 0.20, 0.12], bulb: [1.0, 0.92, 0.70] },
+  diner:    { wall: [0.045, 0.13, 0.12], floor: [0.08, 0.09, 0.09],  felt: [0.10, 0.30, 0.28], rim: [0.52, 0.53, 0.56], shade: [0.70, 0.74, 0.78], bulb: [0.85, 0.96, 1.0] },
+  rooftop:  { wall: [0.040, 0.045, 0.10], floor: [0.055, 0.055, 0.07], felt: [0.09, 0.11, 0.19], rim: [0.28, 0.26, 0.24], shade: [0.16, 0.13, 0.26], bulb: [1.0, 0.72, 0.50] }
+};
+
+export function room(map) {
+  const pal = MAP_PALETTES[map] || MAP_PALETTES.backroom;
   const R = 9, H = 5.5;
   const wall = [];
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
     wall.push({
-      mesh: box({ w: R * 1.05, h: H, d: 0.2, colour: [0.07, 0.055, 0.05] }),
+      mesh: box({ w: R * 1.05, h: H, d: 0.2, colour: pal.wall }),
       t: { pos: [Math.cos(a) * R, H / 2 - 1.6, Math.sin(a) * R], rot: [0, -a + Math.PI / 2, 0] }
     });
   }
-  wall.push({ mesh: cylinder({ r1: 13, r2: 13, h: 0.3, seg: 24, colour: [0.05, 0.045, 0.042] }), t: { pos: [0, -2.4, 0] } });
+  wall.push({ mesh: cylinder({ r1: 13, r2: 13, h: 0.3, seg: 24, colour: pal.floor }), t: { pos: [0, -2.4, 0] } });
+  if (map === 'diner') {
+    // a neon strip and a chrome rail: the whole identity of the place
+    wall.push({ mesh: box({ w: 7, h: 0.10, d: 0.10, colour: [1.5, 0.35, 0.55] }), t: { pos: [0, 1.6, -8.8] } });
+    wall.push({ mesh: box({ w: 7, h: 0.06, d: 0.06, colour: [0.35, 1.3, 1.2] }), t: { pos: [0, 1.35, -8.8] } });
+  }
+  if (map === 'rooftop') {
+    // skyline: dark slabs beyond the parapet, and stars that cost nothing
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + 0.3;
+      const h = 1.2 + (i % 4) * 0.9;
+      wall.push({ mesh: box({ w: 2.4, h, d: 1.2, colour: [0.02, 0.022, 0.05] }), t: { pos: [Math.cos(a) * 12, h / 2 - 1.2, Math.sin(a) * 12] } });
+    }
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      wall.push({ mesh: box({ w: 0.05, h: 0.05, d: 0.05, colour: [1.4, 1.4, 1.5] }), t: { pos: [Math.cos(a) * 11.5, 3.4 + (i % 3) * 0.7, Math.sin(a) * 11.5] } });
+    }
+  }
   return merge(wall);
 }
 
 /* The lamp. A cone shade with a hot bulb under it and a cord going nowhere. */
-export function lamp() {
+export function lamp(map) {
+  const pal = MAP_PALETTES[map] || MAP_PALETTES.backroom;
+  const bits = [
+    { mesh: cylinder({ r1: 0.035, r2: 0.035, h: 2.4, seg: 6, colour: [0.05, 0.04, 0.04] }), t: { pos: [0, 3.7, 0] } }
+  ];
+  if (map === 'rooftop') {
+    // a string of bulbs instead of a shade: cheaper than a roof
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      bits.push({ mesh: sphere({ r: 0.16, seg: 8, rings: 6, colour: pal.bulb }), t: { pos: [Math.cos(a) * 0.5, 1.95 - (i % 2) * 0.15, Math.sin(a) * 0.5] } });
+      bits.push({ mesh: cylinder({ r1: 0.012, r2: 0.012, h: 1.2, seg: 5, colour: [0.06, 0.05, 0.05] }), t: { pos: [Math.cos(a) * 0.5, 2.6, Math.sin(a) * 0.5], rot: [0.3 * Math.cos(a), 0, 0.3 * Math.sin(a)] } });
+    }
+  } else {
+    bits.push({ mesh: cylinder({ r1: 1.9, r2: 0.42, h: 0.85, seg: 28, open: true, caps: false, colour: pal.shade }), t: { pos: [0, 2.05, 0] } });
+    bits.push({ mesh: cylinder({ r1: 0.44, r2: 0.44, h: 0.05, seg: 16, colour: [0.12, 0.05, 0.04] }), t: { pos: [0, 2.46, 0] } });
+    bits.push({ mesh: sphere({ r: 0.20, seg: 10, rings: 7, colour: pal.bulb }), t: { pos: [0, 1.80, 0] } });
+  }
+  return merge(bits);
+}
+
+/* Two more guns and a precious one. The golden revolver is the revolver,
+   drawn with a tint — vanity should not cost triangles. */
+export function sawedoff() {
   return merge([
-    { mesh: cylinder({ r1: 1.9, r2: 0.42, h: 0.85, seg: 28, open: true, caps: false, colour: LAMPSHADE }), t: { pos: [0, 2.05, 0] } },
-    { mesh: cylinder({ r1: 0.44, r2: 0.44, h: 0.05, seg: 16, colour: [0.12, 0.05, 0.04] }), t: { pos: [0, 2.46, 0] } },
-    { mesh: cylinder({ r1: 0.035, r2: 0.035, h: 2.4, seg: 6, colour: [0.05, 0.04, 0.04] }), t: { pos: [0, 3.7, 0] } },
-    { mesh: sphere({ r: 0.20, seg: 10, rings: 7, colour: [1.0, 0.92, 0.70] }), t: { pos: [0, 1.80, 0] } }
+    { mesh: cylinder({ r1: 0.10, r2: 0.10, h: 0.95, seg: 12, colour: [0.22, 0.24, 0.28] }), t: { pos: [0, 0, -0.55], rot: [1.5708, 0, 0] } },
+    { mesh: cylinder({ r1: 0.16, r2: 0.16, h: 0.34, seg: 12, colour: [0.30, 0.32, 0.37] }), t: { pos: [0, 0, -0.05], rot: [1.5708, 0, 0] } },
+    { mesh: box({ w: 0.10, h: 0.34, d: 0.16, colour: [0.35, 0.18, 0.09] }), t: { pos: [0, -0.20, 0.22], rot: [0.35, 0, 0] } },
+    { mesh: box({ w: 0.06, h: 0.10, d: 0.10, colour: [0.22, 0.24, 0.28] }), t: { pos: [0, 0.14, 0.10] } }
+  ]);
+}
+
+export function flintlock() {
+  return merge([
+    { mesh: cylinder({ r1: 0.05, r2: 0.055, h: 2.1, seg: 10, colour: [0.24, 0.26, 0.30] }), t: { pos: [0, 0.02, -0.85], rot: [1.5708, 0, 0] } },
+    { mesh: cylinder({ r1: 0.09, r2: 0.09, h: 0.5, seg: 10, colour: [0.40, 0.24, 0.12] }), t: { pos: [0, -0.02, 0.42], rot: [1.5708, 0, 0] } },
+    { mesh: box({ w: 0.07, h: 0.30, d: 0.14, colour: [0.40, 0.24, 0.12] }), t: { pos: [0, -0.18, 0.62], rot: [0.5, 0, 0] } },
+    { mesh: sphere({ r: 0.06, seg: 8, rings: 6, colour: [0.55, 0.50, 0.40] }), t: { pos: [0.06, 0.10, 0.30] } },
+    { mesh: box({ w: 0.03, h: 0.12, d: 0.03, colour: [0.55, 0.50, 0.40] }), t: { pos: [0, 0.10, -1.75] } }
   ]);
 }
 

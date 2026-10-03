@@ -15,7 +15,7 @@
 'use strict';
 
 import { Renderer } from './glkit.js';
-import { billboard, casing, cylinder, feltTexture, lamp, revolver, room, seat, shell, table, characterParts } from './meshes.js';
+import { billboard, casing, cylinder, feltTexture, lamp, revolver, room, seat, shell, table, characterParts, sawedoff, flintlock } from './meshes.js';
 import { M4, V3, clamp, lerp, approach, makeRandom } from './math.js';
 
 const SEAT_RADIUS = 3.62;
@@ -246,6 +246,25 @@ export class Scene {
   seatPosition(index, count) {
     const a = (index / Math.max(1, count)) * Math.PI * 2 + Math.PI / count + this.cam.orbit * 0.35;
     return [Math.cos(a) * SEAT_RADIUS, SEAT_HEIGHT, Math.sin(a) * SEAT_RADIUS];
+  }
+
+  /* Maps and guns are buffer swaps, not scenes: same draw calls, new paint. */
+  applyCosmetics(settings) {
+    const st = settings || {};
+    const map = st.map || 'backroom';
+    const weapon = st.weapon || 'revolver';
+    if (map !== this.curMap) {
+      this.curMap = map;
+      this.assets.room = this.renderer.replace(room(map), 'room');
+      this.assets.table = this.renderer.replace(table(map), 'table');
+      this.assets.lamp = this.renderer.replace(lamp(map), 'lamp');
+    }
+    if (weapon !== this.curWeapon) {
+      this.curWeapon = weapon;
+      const mesh = weapon === 'sawedoff' ? sawedoff() : weapon === 'flintlock' ? flintlock() : revolver();
+      this.assets.gun = this.renderer.replace(mesh, 'gun');
+    }
+    this.gunTint = weapon === 'golden' ? [1.5, 1.18, 0.40] : [1, 1, 1];
   }
 
   /* ---------------------------------------------------------------- people */
@@ -580,8 +599,8 @@ export class Scene {
         (0.92 + flashBoost * 1.2) * this.flashColour[1] * flicker,
         (0.68 + flashBoost * 0.7) * this.flashColour[2] * flicker
       ],
-      power: 7.4 * flicker,
-      ambient: [0.030, 0.026, 0.032],
+      power: 7.4 * flicker * (state && state.twist === 'lights' ? 0.55 : 1),
+      ambient: [0.030, 0.026, 0.032].map((a) => a * (state && state.twist === 'lights' ? 0.55 : 1)),
       ambientBoost: flashBoost * 0.55
     };
 
@@ -715,7 +734,7 @@ export class Scene {
       [this.gunTilt, this.gunSpin, 0],
       [1, 1, 1]
     );
-    r.draw(this.assets.gun, gm, M4.normalFrom(gm), {
+    r.draw(this.assets.gun, gm, M4.normalFrom(gm), { tint: this.gunTint || [1, 1, 1],
       rim: 0.42,
       tint: [1 + flashBoost * 0.8, 1 + flashBoost * 0.7, 1 + flashBoost * 0.5]
     });

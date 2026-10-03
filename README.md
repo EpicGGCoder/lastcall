@@ -59,7 +59,7 @@ When this file exists, `node server/index.js` serves it at `/`.
 
 ---
 
-## How a night goes
+## How a night goes (v2)
 
 1. **The magazine.** Each round the dealer loads `min(10, 4 + players)` shells,
    somewhere between 34% and 66% live. Everyone sees the counts. Nobody sees
@@ -76,6 +76,26 @@ When this file exists, `node server/index.js` serves it at `/`.
    and you are out — but you keep your seat, your chat, and your reactions.
 5. **Escalation.** Magazines reload, rounds stack, and the dealer's narration
    gets progressively less professional.
+
+**The table has people on it.** Every seat is a seated, animated 3D character
+— ten species from The Regular to The Toaster — with eyes that track whoever
+holds the gun, mouths that move when they talk, arms that go up when they
+cheer and over their faces when they flinch. When a live round lands, the
+head comes off and bounces, time dilates for a beat, and the camera cuts to
+the face of whoever did it. Roulette medics occasionally stitch them back in.
+
+**Round twists** roll between magazines (frequency set by the host's chaos
+setting): double damage, whiskey rain, musical chairs, a golden shell that
+pays double, frenzy clocks, lights down, and the medic. The dealer announces
+each one, identically, to everyone.
+
+**The economy.** Every match pays coins (kills, self-blanks, survival,
+winning). Coins unlock faces, guns and rooms from the title screen — stored
+in your browser, no account, no server round-trip.
+
+**Rooms and guns.** Three maps (backroom, diner, rooftop) and four guns
+(revolver, sawed-off, flintlock, golden) are host-selectable in the lobby and
+swap live: same draw calls, new paint.
 
 **Controls:** tap/click, or `Space`/`S` shoot yourself · `F` shoot someone ·
 `1–4` use item · `T` chat · `Esc` cancel.

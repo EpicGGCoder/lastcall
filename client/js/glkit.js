@@ -177,6 +177,20 @@ export class Renderer {
     return rec;
   }
 
+  /* Swap a keyed mesh for new geometry (maps, guns). The cache that makes
+     static draws cheap would otherwise make re-uploads silent no-ops. */
+  replace(mesh, key) {
+    const old = this.buffers.get(key);
+    if (old) {
+      this.gl.deleteBuffer(old.vbo);
+      this.gl.deleteBuffer(old.nbo);
+      this.gl.deleteBuffer(old.cbo);
+      this.gl.deleteBuffer(old.ibo);
+      this.buffers.delete(key);
+    }
+    return this.upload(mesh, key);
+  }
+
   /* Upload a point cloud used for dust and sparks. */
   uploadPoints(cloud, key) {
     const gl = this.gl;

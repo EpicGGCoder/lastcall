@@ -214,7 +214,7 @@ class Room {
     // Starting alone? Fill the table FIRST — the minimum-players check below
     // must see the regulars, or a solo host gets a dead button and closes
     // the tab. Nobody should ever be unable to start.
-    if (this.humans().length >= 1 && this.players.length < 3) {
+    if (this.humans().length === 1 && this.players.length < 3) {
       const before = this.players.length;
       while (this.players.length < Math.max(G.MIN_PLAYERS, Math.min(6, this.settings.seats || 3))) this.addBot();
       if (this.players.length > before) {
@@ -225,6 +225,7 @@ class Room {
 
     const seats = this.players.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, colour: p.colour, isBot: p.isBot, bot: p.persona }));
     this.game = G.createGame(seats, rng);
+    this.game.chaos = this.settings.chaos || 'standard';
     this.game.seedNote = 'room ' + this.code;
 
     const events = G.startGame(this.game, rng);
@@ -319,7 +320,8 @@ class Room {
     // A human's clock. The dealer does not wait forever. The deadline is
     // published so every client can render the same countdown.
     this.clearTimer('turn');
-    const secs = this.settings.turnSeconds;
+    let secs = this.settings.turnSeconds;
+    if (this.game && this.game.twist === 'frenzy') secs = Math.ceil(secs / 2);
     if (!secs) { this.game.turnDeadline = 0; this.pushClock(); return; }
     this.game.turnDeadline = Date.now() + secs * 1000;
     this.pushClock();
@@ -406,6 +408,8 @@ function narrate(room, ev) {
       if (ev.self) return room.dealer('selfLive');
       return room.dealer(ev.shell === 'live' ? 'live' : 'blank');
     case 'out': return room.dealer('out');
+    case 'twist': return room.dealer('twist' + ev.kind[0].toUpperCase() + ev.kind.slice(1));
+    case 'revive': return room.dealer('revive');
     case 'item':
       if (ev.item === 'pill') return room.dealer(ev.detail && ev.detail.good ? 'pillGood' : 'pillBad');
       return room.dealer(ev.item);
